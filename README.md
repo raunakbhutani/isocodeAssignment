@@ -6,12 +6,12 @@ A phased full-stack dealership application for Company A in Lucknow, Uttar Prade
 
 ## Current implementation phase
 
-The app includes database-backed public inventory and vehicle details, enquiry and test-drive submission, showroom/model-based consultant lead assignment, an internal lead acknowledgement, consultant lead access, consent preference capture, an admin inventory/model/variant/image editor, and city-specific on-road pricing. Gemini generation, external messaging, and real image uploads are not implemented.
+The app includes database-backed public inventory and vehicle details, enquiry and test-drive submission, showroom/model-based consultant lead assignment, Gemini-assisted buyer summaries and first-reply drafts, consultant lead access, consent preference capture, an admin inventory/model/variant/image editor, and city-specific on-road pricing. External messaging and real image uploads are not implemented.
 
 ## Local setup
 
 1. Install dependencies with `npm install`.
-2. Copy `.env.example` to `.env`. Set `DATABASE_URL` to a development PostgreSQL database you control, generate a private `AUTH_SECRET`, and set a private `DEMO_ACCOUNT_PASSWORD` (12 to 72 UTF-8 bytes). Never commit `.env`.
+2. Copy `.env.example` to `.env.local`. Set `DATABASE_URL` to a development PostgreSQL database you control, generate a private `AUTH_SECRET`, set a private `DEMO_ACCOUNT_PASSWORD` (12 to 72 UTF-8 bytes), and provide `GEMINI_API_KEY` locally. Never commit `.env.local` or share API keys. If Gemini is not configured, lead capture still works and consultants can write summaries and replies manually.
 3. Generate the Prisma client with `npm run db:generate`.
 4. Apply the checked-in migrations with `npm run db:migrate`.
 5. Seed official inventory and labeled development-only demo data with `npm run db:seed`.
@@ -61,7 +61,9 @@ Admin-managed vehicle images accept HTTPS `images.unsplash.com` URLs only and ar
 - Previous-owner counts and inspection text on the two official used vehicles are assumed demo details; registration numbers are not created.
 - Seeded consultant and buyer accounts, demo cars, and booking slots are assumed, fictional development data. Production staff accounts and notification-provider settings need client approval.
 - Lead assignment is attempted immediately using active consultants eligible for both the selected showroom and interested model. A persisted round-robin cursor rotates between eligible consultants. If none qualify, the lead remains unassigned in the admin queue. The five-minute response timer is measured from lead creation; the assignment acknowledgement is internal only. There is no email/SMS/WhatsApp notification integration, so the five-minute target is monitored but not guaranteed.
-- Gemini output is not connected. Consultants can save and approve manual drafts, but approval never sends a message.
+- Gemini receives only the interested model/variant, buyer-provided budget, purchase timeline, selected showroom, and enquiry message. It does not receive buyer name, email, or phone. The server validates structured output and rejects reply drafts that mention prices or discounts. Consultants can edit and explicitly approve a draft; approval does not send a message.
+- Gemini timeouts, missing credentials, malformed responses, and provider limits are saved as an AI-unavailable status without undoing a successfully created lead. Consultants can write and save a manual summary and reply.
+- AI-generated used-car price suggestions are out of scope. They could be considered later if the client supplies a suitable historical sales dataset and approves the pricing methodology.
 
 ## Backend and authorization
 

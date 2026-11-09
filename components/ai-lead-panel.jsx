@@ -1,18 +1,37 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { approveLeadDraft, saveLeadDraft } from "@/app/actions/consultant";
 import { InfoNotice } from "./ui";
 import { Badge, Card } from "./ui/primitives";
 
-const initialState = { error: "", success: "", draftId: "" };
+const initialState = { error: "", success: "", draftId: "", savedVersion: 0 };
+
+function assistanceLabel(status) {
+  if (status === "GENERATED") return "AI generated · review required";
+  if (status === "UNAVAILABLE") return "AI unavailable";
+  return "Manual assistance";
+}
 
 export default function AiLeadPanel({ leadId, draft }) {
   const [saveState, saveAction, isSaving] = useActionState(saveLeadDraft, initialState);
   const [approvalState, approveAction, isApproving] = useActionState(approveLeadDraft, initialState);
+  const [editVersion, setEditVersion] = useState(0);
   const draftId = saveState.draftId || draft?.id || "";
-  const summary = draft?.summary ?? "No AI summary has been generated. Gemini is not configured.";
-  const reply = draft?.replyDraft ?? "";
+  const isEdited = editVersion !== (saveState.savedVersion ?? 0);
+  const summaryData = draft?.status === "GENERATED" ? draft.summaryData : null;
+  const canApprove = Boolean(draft?.summary && draft?.replyDraft) || Boolean(saveState.success);
+
+  const summarySections = summaryData
+    ? [
+        ["Customer requirements", summaryData.customerRequirements],
+        ["Interested model and variant", summaryData.interestedModelAndVariant],
+        ["Budget", summaryData.budget],
+        ["Purchase timeline", summaryData.purchaseTimeline],
+        ["Preferred showroom", summaryData.preferredShowroom],
+        ["Questions or concerns", summaryData.importantQuestionsOrConcerns?.join("\n") || "None identified"],
+      ]
+    : [];
 
   return (
     <div className="space-y-5">
@@ -22,11 +41,30 @@ export default function AiLeadPanel({ leadId, draft }) {
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">Buyer summary</p>
             <h2 className="mt-2 text-lg font-medium text-[var(--ink)]">Context at a glance</h2>
           </div>
-          <Badge tone="warning">Gemini not connected</Badge>
+          <Badge tone={draft?.status === "GENERATED" ? "success" : "warning"}>
+            {assistanceLabel(draft?.status)}
+          </Badge>
         </div>
-        <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-[var(--muted)]">{summary}</p>
+        {summarySections.length > 0 ? (
+          <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+            {summarySections.map(([label, value]) => (
+              <div key={label} className="border-t border-[var(--line)] pt-3">
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">{label}</dt>
+                <dd className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--ink)]">{value}</dd>
+              </div>
+            ))}
+            <div className="border-t border-[var(--line)] pt-3 sm:col-span-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Consultant summary</dt>
+              <dd className="mt-1 text-sm leading-6 text-[var(--ink)]">{summaryData.consultantSummary}</dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
+            {draft?.statusMessage ?? "No AI summary is saved. You can write one manually below."}
+          </p>
+        )}
         <p className="mt-4 text-[10px] leading-5 text-[var(--muted)]">
-          Summaries and drafts must be reviewed by a consultant. Approving a draft does not send it.
+          AI uses the vehicle interest and enquiry details only. It does not set prices or send messages.
         </p>
       </Card>
 
@@ -38,23 +76,26 @@ export default function AiLeadPanel({ leadId, draft }) {
           </div>
           {draft?.reviewedAt && <Badge tone="success">Approved</Badge>}
         </div>
-        <form action={saveAction} className="mt-4 space-y-4">
+        <form action={saveAction} className="mt-4 space-y-4" onChange={() => setEditVersion((version) => version + 1)}>
           <input type="hidden" name="leadId" value={leadId} />
+          <input type="hidden" name="editVersion" value={editVersion} />
           <label className="form-label">
-            Summary
+            Consultant summary (editable)
             <textarea
               name="summary"
-              defaultValue={summary}
+              defaultValue={draft?.summary ?? ""}
+              placeholder="Write the buyer's needs and the next step for the consultant."
               maxLength={3000}
               required
               className="form-input min-h-24 resize-y py-3"
             />
           </label>
           <label className="form-label">
-            Reply draft
+            Reply draft (editable)
             <textarea
               name="replyDraft"
-              defaultValue={reply}
+              defaultValue={draft?.replyDraft ?? ""}
+              placeholder="Write a professional reply and a suitable next step."
               maxLength={3000}
               required
               className="form-input min-h-36 resize-y py-3"
@@ -65,7 +106,7 @@ export default function AiLeadPanel({ leadId, draft }) {
             type="submit"
             disabled={isSaving}
           >
-            {isSaving ? "Saving..." : "Save draft"}
+            {isSaving ? "Saving..." : "Save edited draft"}
           </button>
         </form>
         {(saveState.error || saveState.success) && (
@@ -73,17 +114,18 @@ export default function AiLeadPanel({ leadId, draft }) {
             {saveState.error || saveState.success}
           </p>
         )}
-        {draftId && (
+        {draftId && canApprove && (
           <form action={approveAction} className="mt-4">
             <input type="hidden" name="leadId" value={leadId} />
             <input type="hidden" name="draftId" value={draftId} />
             <button
               className="min-h-11 border border-[var(--line)] bg-white px-5 text-sm font-medium text-[var(--ink)] hover:border-[var(--ink)] disabled:opacity-50"
               type="submit"
-              disabled={isApproving}
+              disabled={isApproving || isEdited}
             >
-              {isApproving ? "Approving..." : "Approve draft"}
+              {isApproving ? "Approving..." : "Approve reviewed draft"}
             </button>
+            {isEdited && <p className="mt-2 text-xs text-[var(--muted)]">Save your edits before approving this draft.</p>}
           </form>
         )}
         {(approvalState.error || approvalState.success) && (
@@ -92,8 +134,8 @@ export default function AiLeadPanel({ leadId, draft }) {
           </p>
         )}
         <div className="mt-4">
-          <InfoNotice title="No messages are sent:">
-            Saved and approved drafts remain in the lead record for consultant review. Sending needs a separate confirmed messaging integration.
+          <InfoNotice title="Approval does not send a message:">
+            A consultant must explicitly approve the reviewed draft. Sending is not integrated; no email, SMS, or WhatsApp message is sent.
           </InfoNotice>
         </div>
       </Card>

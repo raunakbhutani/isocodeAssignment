@@ -88,7 +88,7 @@ export default function TestDriveForm({ slots, vehicles, vehicleStockId = "" }) 
   return (
     <div className="border border-[var(--line)] bg-white p-5 sm:p-8">
       <InfoNotice title="Availability and privacy:">
-        Only separate, available demo cars with open database slots can be booked. Your required consent lets Company A contact you about this appointment.
+        Only separate, available demo cars with open database slots can be booked. Limited enquiry details (vehicle interest, budget, timeline, showroom, and message) may be processed by Gemini for an internal summary and reply draft; your name, email, and phone are not sent to Gemini.
       </InfoNotice>
       <form action={formAction} className="mt-7 space-y-5">
         <div className="grid gap-5 sm:grid-cols-2">
@@ -195,7 +195,7 @@ export default function TestDriveForm({ slots, vehicles, vehicleStockId = "" }) 
         </Field>
         <label className="flex items-start gap-3 text-xs leading-5 text-[var(--muted)]">
           <input className="mt-1 accent-[var(--accent)]" type="checkbox" name="contactConsent" required />
-          I have read the privacy notice and consent to Company A using my details to arrange and discuss this test drive.
+          I have read the privacy notice and consent to Company A using my details to arrange this test drive. Limited enquiry details may be processed by Gemini for an internal summary and reply draft.
         </label>
         <label className="flex items-start gap-3 text-xs leading-5 text-[var(--muted)]">
           <input className="mt-1 accent-[var(--accent)]" type="checkbox" name="marketingConsent" />

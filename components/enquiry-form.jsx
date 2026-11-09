@@ -20,7 +20,7 @@ export default function EnquiryForm({ vehicleStockId = "", vehicles, showrooms }
   return (
     <Card className="p-5 sm:p-8">
       <InfoNotice title="Lead assignment and privacy:">
-        Your details are used to respond to this enquiry. We will route it to a consultant matching your showroom and vehicle interest when possible. No external message is sent automatically.
+        Limited enquiry details (vehicle interest, budget, timeline, showroom, and message) may be processed by Gemini to prepare an internal summary and reply draft. Your name, email, and phone are not sent to Gemini. A consultant reviews all AI content; no message is sent automatically.
       </InfoNotice>
       <form action={formAction} className="mt-6 space-y-5">
         <div className="grid gap-5 sm:grid-cols-2">
@@ -66,7 +66,7 @@ export default function EnquiryForm({ vehicleStockId = "", vehicles, showrooms }
         </Field>
         <label className="flex items-start gap-3 text-xs leading-5 text-[var(--muted)]">
           <input className="mt-1 accent-[var(--accent)]" type="checkbox" name="contactConsent" required />
-          I have read the privacy notice and consent to Company A using my details to respond to this enquiry.
+          I have read the privacy notice and consent to Company A using my details to respond. Limited enquiry details may be processed by Gemini to prepare an internal summary and reply draft.
         </label>
         <label className="flex items-start gap-3 text-xs leading-5 text-[var(--muted)]">
           <input className="mt-1 accent-[var(--accent)]" type="checkbox" name="marketingConsent" />

@@ -6,7 +6,7 @@
 
 ## Current implementation scope
 
-The Next.js App Router uses PostgreSQL/Prisma for public inventory/details, buyer registration, enquiry/test-drive requests, consultant lead access, consent records, and draft/status actions. Admin-only server actions and forms manage inventory, models/variants, images, city pricing, showrooms, and consultants. Gemini generation and message sending are not connected.
+The Next.js App Router uses PostgreSQL/Prisma for public inventory/details, buyer registration, enquiry/test-drive requests, consultant lead access, consent records, and draft/status actions. Admin-only server actions and forms manage inventory, models/variants, images, city pricing, showrooms, and consultants. Gemini generates a structured buyer summary and first-reply draft on the server. No messaging provider is connected.
 
 ## Route map
 
@@ -35,7 +35,7 @@ The Next.js App Router uses PostgreSQL/Prisma for public inventory/details, buye
 - **`TestDriveForm`** — Loads active showrooms, available demo vehicles, and future open slots from PostgreSQL; server validation and a transaction reserve a slot.
 - **`EnquiryForm`** — Captures buyer details and explicit contact consent, then sends a validated server action that creates and assigns a lead.
 - **`LeadTable`** — Search, status, and showroom filtering over records available to the signed-in consultant/admin; admins can also filter the unassigned queue.
-- **`AiLeadPanel`** — Persists consultant-edited summary/reply drafts and approval timestamps. Gemini is not connected and approval does not send anything.
+- **`AiLeadPanel`** — Displays the validated structured summary or a clear unavailable/manual state, lets consultants edit and save a summary/reply, and records explicit approval. Approval does not send anything.
 - **`AdminTabs`** — Protected forms for editing inventory, models/variants, assumed-or-verified city pricing, showroom/consultant records, and placeholder image details.
 - **`app/loading.js`, `app/error.js`, `app/not-found.js`** — Shared loading, retryable error, and missing-vehicle experiences.
 
@@ -81,10 +81,12 @@ The Prisma schema uses one table per main business concept:
 - **TestDriveBooking** belongs to a lead and a unique TestDriveSlot; slots point to an assumed demo VehicleInventory row and a showroom. The database enforces at most one booking per slot.
 - **ConsentRecord** stores dated granted/revoked choices for a user or lead. Contact and optional marketing consent are separate.
 - **LeadActivity**, **LeadAiDraft**, and **TestDriveSlot** support status/audit history, consultant-reviewed AI drafts, and time-slot availability. Lead statuses are New, Contacted, Test Drive Scheduled, Negotiation, Converted, and Lost.
+- **LeadAiDraft** also stores a structured JSON summary, provider/manual/unavailable state, a safe status message, reply text, and consultant review time.
 
 ## Authentication and authorization
 
 - Auth.js Credentials checks normalized email and bcrypt password hashes. Password hashes use bcrypt cost 12; plaintext passwords are never stored.
+- Gemini API access uses the server-only `GEMINI_API_KEY` environment variable. `.env.local` is ignored by Git; `.env.example` contains only a placeholder.
 - A new public account can only receive the BUYER role. Admin-only actions create CONSULTANT users and profiles. Role values from browser forms are never trusted.
 - Sessions use JWTs, but authorization helpers re-read the user from the database so a deactivated account or changed role does not keep its old access.
 - Consultant pages/actions/API handlers require the CONSULTANT or ADMIN role. Lead reads/mutations additionally scope the lead to the current consultant profile. Reassignment is allowed to admins, or to the assigned consultant choosing an active consultant eligible for the same showroom and interested model.
@@ -112,7 +114,7 @@ The Prisma schema uses one table per main business concept:
 | Auth.js `/api/auth/[...nextauth]` | Credentials sign-in/out/session endpoints |
 | Buyer registration action | Validate name/email/password, hash password, create only a BUYER |
 | Enquiry action | Validate details and mandatory contact consent; create lead, consent record, assignment history |
-| Test-drive action | Validate the interested vehicle and separate demo car, atomically reserve an open slot, and create the lead/confirmed booking/consent records |
+| Enquiry/test-drive actions | After the lead and any booking are committed, request Gemini assistance and persist the result separately so AI failures do not undo the lead |
 | Consent action | Append the buyer's optional marketing preference without conflating it with service contact consent |
 | Consultant actions | Read assigned leads; update status/first-response time; save/approve drafts; permitted reassignment |
 | Admin actions | Create/update inventory, models/variants, assumed placeholder images, dated city pricing, showrooms, and consultants |
@@ -124,7 +126,10 @@ The Prisma schema uses one table per main business concept:
 - **Round-robin limitations:** The cursor is scoped only by showroom/model and distributes assignments evenly by assignment count, not workload or staff availability. Serializable transaction conflicts are retried up to three times. If that still fails, the request returns an error rather than falsely reporting success. Consultants must have explicit model eligibility; unmatched leads stay in the admin queue until an eligible consultant or specialty is configured.
 - **Test-drive safety:** The buyer selects an available non-demo inventory vehicle of interest separately from an available demo vehicle. A request must reference an open, future slot at the selected active showroom. A conditional slot update and unique booking constraint prevent two confirmed bookings for the same slot; the booking and lead are created atomically. `NEW-H-02` is not presumed to be a demo car, and `UC-1190` is BOOKED, not a demo vehicle, and cannot be booked.
 - **Price separation:** New inventory stores an ex-showroom price; used inventory stores a listing price. Neither is represented as an on-road price. A valid city/variant pricing row is selected by current date, then the server calculates `ex-showroom + round(ex-showroom × roadTaxBasisPoints / 10,000) + registration + insurance + accessories + other charges`. Invalid, incomplete, or expired records do not produce totals. The buyer sees the breakup, validity dates, change notice, and assumption flag.
-- **AI:** Gemini is not yet integrated. Draft records can be edited/approved by authorized consultants, and approval does not send a reply.
+- **Gemini workflow:** Once the lead transaction succeeds, a server-only service sends Gemini only the interested model/variant, buyer-provided budget, purchase timeline, preferred showroom, and enquiry message. Buyer name, email, and phone are not sent; email/phone patterns in free-text messages are redacted before the API request. The prompt treats buyer text as untrusted and forbids discounts, price quotes, and invented promises. Gemini returns JSON for customer requirements, important questions/concerns, a concise summary, and a first reply. Model, budget, timeline, and showroom in the stored summary are populated from trusted database values rather than generated values. The API key is read from `GEMINI_API_KEY` on the server and must never be embedded in client code or committed.
+- **AI validation and fallback:** Response shape and lengths are checked before storing or displaying. Replies that mention prices, quotes, currency amounts, or discounts are rejected. A missing key, timeout, API limit, invalid/empty response, or service error creates an AI-unavailable status after the original lead is saved. The consultant can then manually write and save a summary and reply. AI output is a draft, not business advice or a price source.
+- **Human review and sending:** Consultants can edit and explicitly approve drafts; changed text must be saved before approval. Approval is only a review marker. There is no send action or messaging integration, and nothing is sent automatically.
+- **AI scope:** Gemini does not calculate new-car on-road pricing or used-car prices. Historical-sales-based used-car price suggestions are a possible future enhancement only after Company A provides an appropriate historical dataset and approves its use.
 - **Consent:** Contact permission is required for an enquiry/test-drive request. The optional marketing choice (including a refusal) is separately recorded; buyer settings append future preference changes.
 
 ## Styling and accessibility

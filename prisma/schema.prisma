@@ -78,6 +78,12 @@ enum LeadNotificationType {
   LEAD_REASSIGNED
 }
 
+enum LeadAiStatus {
+  GENERATED
+  UNAVAILABLE
+  MANUAL
+}
+
 enum LeadSource {
   WEBSITE
   CAR_PORTAL
@@ -435,14 +441,17 @@ model LeadActivity {
 }
 
 model LeadAiDraft {
-  id         String    @id @default(cuid())
-  leadId     String
-  summary    String
-  replyDraft String
-  model      String
-  reviewedAt DateTime?
-  lead       Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  createdAt  DateTime  @default(now())
+  id            String       @id @default(cuid())
+  leadId        String
+  summary       String
+  summaryData   Json?
+  replyDraft    String
+  model         String
+  status        LeadAiStatus @default(MANUAL)
+  statusMessage String?
+  reviewedAt    DateTime?
+  lead          Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdAt     DateTime     @default(now())
 
   @@index([leadId, createdAt])
 }

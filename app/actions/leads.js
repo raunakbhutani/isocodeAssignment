@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { leadInputSchema } from "@/lib/validation";
 import { createAssignedLead, withSerializableTransaction } from "@/lib/lead-service";
 import { BookingConflictError, isBookableDemoSlot } from "@/lib/test-drive";
+import { generateAndSaveLeadAssistance } from "@/lib/lead-ai-service";
 
 function parseLeadForm(formData) {
   return leadInputSchema.safeParse({
@@ -38,7 +39,9 @@ export async function submitEnquiry(_previousState, formData) {
       source: "WEBSITE",
     }),
   );
+  await generateAndSaveLeadAssistance(lead.id);
   revalidatePath("/consultant/leads");
+  revalidatePath(`/consultant/leads/${lead.id}`);
   return {
     success: lead.assignedConsultant
       ? `Enquiry received and assigned to ${lead.assignedConsultant.user.name}. Reference: ${lead.reference}`
@@ -144,8 +147,10 @@ export async function requestTestDrive(_previousState, formData) {
   });
   if (result.error) return result;
 
+  await generateAndSaveLeadAssistance(result.id);
   revalidatePath("/book-test-drive");
   revalidatePath("/consultant/leads");
+  revalidatePath(`/consultant/leads/${result.id}`);
   return {
     success: result.assignedConsultant
       ? `Test drive confirmed and assigned to ${result.assignedConsultant.user.name}.`

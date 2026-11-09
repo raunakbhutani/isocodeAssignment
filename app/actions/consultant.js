@@ -119,7 +119,17 @@ export async function getLeadDetails(leadId) {
         orderBy: { createdAt: "desc" },
       },
       aiDrafts: {
-        select: { id: true, summary: true, replyDraft: true, model: true, reviewedAt: true, createdAt: true },
+        select: {
+          id: true,
+          summary: true,
+          summaryData: true,
+          replyDraft: true,
+          model: true,
+          status: true,
+          statusMessage: true,
+          reviewedAt: true,
+          createdAt: true,
+        },
         orderBy: { createdAt: "desc" },
         take: 1,
       },
@@ -172,10 +182,12 @@ export async function saveLeadDraft(_previousState, formData) {
     leadId: leadIdSchema,
     summary: z.string().trim().min(1).max(3000),
     replyDraft: z.string().trim().min(1).max(3000),
+    editVersion: z.coerce.number().int().min(0).max(100000),
   }).safeParse({
     leadId: formData.get("leadId"),
     summary: formData.get("summary"),
     replyDraft: formData.get("replyDraft"),
+    editVersion: formData.get("editVersion"),
   });
   if (!parsed.success) return { error: "The summary and reply draft are required." };
   await requireLeadAccess(parsed.data.leadId);
@@ -186,11 +198,17 @@ export async function saveLeadDraft(_previousState, formData) {
       summary: parsed.data.summary,
       replyDraft: parsed.data.replyDraft,
       model: "manual",
+      status: "MANUAL",
+      statusMessage: null,
     },
     select: { id: true },
   });
   revalidatePath(`/consultant/leads/${parsed.data.leadId}`);
-  return { success: "Draft saved. No message was sent.", draftId: draft.id };
+  return {
+    success: "Draft saved. No message was sent.",
+    draftId: draft.id,
+    savedVersion: parsed.data.editVersion,
+  };
 }
 
 export async function approveLeadDraft(_previousState, formData) {
@@ -205,7 +223,13 @@ export async function approveLeadDraft(_previousState, formData) {
   await requireLeadAccess(parsed.data.leadId);
 
   const updated = await prisma.leadAiDraft.updateMany({
-    where: { id: parsed.data.draftId, leadId: parsed.data.leadId },
+    where: {
+      id: parsed.data.draftId,
+      leadId: parsed.data.leadId,
+      status: { in: ["GENERATED", "MANUAL"] },
+      summary: { not: "" },
+      replyDraft: { not: "" },
+    },
     data: { reviewedAt: new Date() },
   });
   if (updated.count !== 1) throw new Error("This draft does not belong to the selected lead.");
