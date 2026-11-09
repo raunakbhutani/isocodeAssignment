@@ -2,6 +2,32 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model LeadAssignmentCursor {
+  showroomId String
+  modelId    String
+  nextIndex  Int      @default(0)
+  showroom   Showroom @relation(fields: [showroomId], references: [id], onDelete: Cascade)
+  model      CarModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  updatedAt  DateTime @updatedAt
+
+  @@id([showroomId, modelId])
+}
+
+model LeadNotification {
+  id                    String               @id @default(cuid())
+  leadId                String
+  recipientConsultantId String?
+  type                  LeadNotificationType
+  message               String
+  readAt                DateTime?
+  createdAt             DateTime             @default(now())
+  lead                  Lead                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  recipientConsultant   Consultant?          @relation(fields: [recipientConsultantId], references: [id], onDelete: SetNull)
+
+  @@index([recipientConsultantId, readAt, createdAt])
+  @@index([leadId, createdAt])
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -40,10 +66,16 @@ enum PriceType {
 enum LeadStatus {
   NEW
   CONTACTED
-  QUALIFIED
+  NEGOTIATION
   TEST_DRIVE_SCHEDULED
-  WON
+  CONVERTED
   LOST
+}
+
+enum LeadNotificationType {
+  LEAD_ASSIGNED
+  LEAD_UNASSIGNED
+  LEAD_REASSIGNED
 }
 
 enum LeadSource {
@@ -131,12 +163,15 @@ model VerificationToken {
 }
 
 model CarModel {
-  id        String       @id @default(cuid())
-  brand     String
-  name      String
-  variants  CarVariant[]
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id                String                 @id @default(cuid())
+  brand             String
+  name              String
+  variants          CarVariant[]
+  consultants       ConsultantModel[]
+  assignmentCursors LeadAssignmentCursor[]
+  assignments       LeadAssignment[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
 
   @@unique([brand, name])
 }
@@ -234,37 +269,52 @@ model VehicleImage {
 }
 
 model Showroom {
-  id         String             @id @default(cuid())
-  name       String
-  address    String?
-  cityId     String
-  isAssumed  Boolean            @default(false)
-  isActive   Boolean            @default(true)
-  city       City               @relation(fields: [cityId], references: [id], onDelete: Restrict)
-  consultant Consultant[]
-  inventory  VehicleInventory[]
-  slots      TestDriveSlot[]
-  leads      Lead[]
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
+  id                    String                 @id @default(cuid())
+  name                  String
+  address               String?
+  cityId                String
+  isAssumed             Boolean                @default(false)
+  isActive              Boolean                @default(true)
+  city                  City                   @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  consultant            Consultant[]
+  inventory             VehicleInventory[]
+  slots                 TestDriveSlot[]
+  leads                 Lead[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  leadAssignmentCursors LeadAssignmentCursor[]
+  leadAssignments       LeadAssignment[]
 
   @@unique([name, cityId])
   @@index([cityId, isActive])
 }
 
 model Consultant {
-  id          String           @id @default(cuid())
-  userId      String           @unique
-  showroomId  String
-  isActive    Boolean          @default(true)
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  showroom    Showroom         @relation(fields: [showroomId], references: [id], onDelete: Restrict)
-  leads       Lead[]           @relation("LeadAssignee")
-  assignments LeadAssignment[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id            String             @id @default(cuid())
+  userId        String             @unique
+  showroomId    String
+  isActive      Boolean            @default(true)
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  showroom      Showroom           @relation(fields: [showroomId], references: [id], onDelete: Restrict)
+  leads         Lead[]             @relation("LeadAssignee")
+  assignments   LeadAssignment[]
+  models        ConsultantModel[]
+  notifications LeadNotification[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   @@index([showroomId, isActive])
+}
+
+model ConsultantModel {
+  consultantId String
+  modelId      String
+  consultant   Consultant @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  model        CarModel   @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([consultantId, modelId])
+  @@index([modelId, consultantId])
 }
 
 model Lead {
@@ -275,6 +325,8 @@ model Lead {
   email                String?
   phone                String
   message              String?
+  budgetInr            Int?
+  purchaseTimeline     String?
   source               LeadSource
   status               LeadStatus         @default(NEW)
   variantId            String?
@@ -296,6 +348,7 @@ model Lead {
   aiDrafts             LeadAiDraft[]
   testDriveBookings    TestDriveBooking[]
   consentRecords       ConsentRecord[]
+  notifications        LeadNotification[]
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -308,10 +361,14 @@ model LeadAssignment {
   id           String     @id @default(cuid())
   leadId       String
   consultantId String
+  showroomId   String?
+  modelId      String?
   assignedById String?
   assignedAt   DateTime   @default(now())
   lead         Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
   consultant   Consultant @relation(fields: [consultantId], references: [id], onDelete: Restrict)
+  showroom     Showroom?  @relation(fields: [showroomId], references: [id], onDelete: SetNull)
+  model        CarModel?  @relation(fields: [modelId], references: [id], onDelete: SetNull)
   assignedBy   User?      @relation("AssignmentActor", fields: [assignedById], references: [id], onDelete: SetNull)
 
   @@index([leadId, assignedAt])

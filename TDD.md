@@ -34,7 +34,7 @@ The Next.js App Router uses PostgreSQL/Prisma for public inventory/details, buye
 - **`CityPricePanel`** — Requests a city/variant estimate from the server and displays the dated, itemized component breakup and assumed-price warning.
 - **`TestDriveForm`** — Loads active showrooms, available demo vehicles, and future open slots from PostgreSQL; server validation and a transaction reserve a slot.
 - **`EnquiryForm`** — Captures buyer details and explicit contact consent, then sends a validated server action that creates and assigns a lead.
-- **`LeadTable`** — Search/status filtering over records available to the signed-in consultant/admin.
+- **`LeadTable`** — Search, status, and showroom filtering over records available to the signed-in consultant/admin; admins can also filter the unassigned queue.
 - **`AiLeadPanel`** — Persists consultant-edited summary/reply drafts and approval timestamps. Gemini is not connected and approval does not send anything.
 - **`AdminTabs`** — Protected forms for editing inventory, models/variants, assumed-or-verified city pricing, showroom/consultant records, and placeholder image details.
 - **`app/loading.js`, `app/error.js`, `app/not-found.js`** — Shared loading, retryable error, and missing-vehicle experiences.
@@ -73,18 +73,21 @@ The Prisma schema uses one table per main business concept:
 - **VehicleImage** links a secure image URL, description, display order, and assumption flag to a stock record.
 - **Showroom** belongs to a city and has consultant, demo inventory, test-drive slot, and lead relations. Seeded showroom names are explicitly marked assumed.
 - **Consultant** is a one-to-one profile for a CONSULTANT User and belongs to a showroom. Leads point to the profile, not to an arbitrary user ID.
+- **ConsultantModel** is the join table that records which car models each consultant can handle. A consultant is only auto-assigned when both the selected showroom and model match.
 - **Lead** stores enquiry/contact data, optional buyer, interested vehicle/variant, city/showroom, current consultant assignment, status, and timestamps.
-- **LeadAssignment** is assignment history. A lead has many assignment records, each for a consultant and optionally the actor who made the assignment.
+- **LeadAssignment** is assignment history. A lead has many assignment records, each for a consultant and optionally the actor who made the assignment; the showroom and model are retained for audit context.
+- **LeadAssignmentCursor** persists the next position in each showroom/model round-robin queue, so assignment distribution is stable across server restarts.
+- **LeadNotification** stores an internal acknowledgement for an assigned lead or a notice that an admin needs to assign it. It is not an email, SMS, or WhatsApp delivery record.
 - **TestDriveBooking** belongs to a lead and a unique TestDriveSlot; slots point to an assumed demo VehicleInventory row and a showroom. The database enforces at most one booking per slot.
 - **ConsentRecord** stores dated granted/revoked choices for a user or lead. Contact and optional marketing consent are separate.
-- **LeadActivity**, **LeadAiDraft**, and **TestDriveSlot** support status/audit history, consultant-reviewed AI drafts, and time-slot availability.
+- **LeadActivity**, **LeadAiDraft**, and **TestDriveSlot** support status/audit history, consultant-reviewed AI drafts, and time-slot availability. Lead statuses are New, Contacted, Test Drive Scheduled, Negotiation, Converted, and Lost.
 
 ## Authentication and authorization
 
 - Auth.js Credentials checks normalized email and bcrypt password hashes. Password hashes use bcrypt cost 12; plaintext passwords are never stored.
 - A new public account can only receive the BUYER role. Admin-only actions create CONSULTANT users and profiles. Role values from browser forms are never trusted.
 - Sessions use JWTs, but authorization helpers re-read the user from the database so a deactivated account or changed role does not keep its old access.
-- Consultant pages/actions/API handlers require the CONSULTANT or ADMIN role. Lead reads/mutations additionally scope the lead to the current consultant profile. Reassignment is allowed to admins, or to the assigned consultant within the same showroom.
+- Consultant pages/actions/API handlers require the CONSULTANT or ADMIN role. Lead reads/mutations additionally scope the lead to the current consultant profile. Reassignment is allowed to admins, or to the assigned consultant choosing an active consultant eligible for the same showroom and interested model.
 - Admin actions require ADMIN server-side. The official sample records are created exactly by the seed, which uses empty updates for official rows to preserve admin changes on later seed runs.
 - Every Server Action validates untrusted form data. Protected Route Handlers return 401 for unauthenticated callers and 403 for wrong roles.
 
@@ -109,16 +112,17 @@ The Prisma schema uses one table per main business concept:
 | Auth.js `/api/auth/[...nextauth]` | Credentials sign-in/out/session endpoints |
 | Buyer registration action | Validate name/email/password, hash password, create only a BUYER |
 | Enquiry action | Validate details and mandatory contact consent; create lead, consent record, assignment history |
-| Test-drive action | Validate the slot, atomically reserve it, and create its lead/booking/consent records |
+| Test-drive action | Validate the interested vehicle and separate demo car, atomically reserve an open slot, and create the lead/confirmed booking/consent records |
 | Consent action | Append the buyer's optional marketing preference without conflating it with service contact consent |
 | Consultant actions | Read assigned leads; update status/first-response time; save/approve drafts; permitted reassignment |
 | Admin actions | Create/update inventory, models/variants, assumed placeholder images, dated city pricing, showrooms, and consultants |
 
 ## Important business logic
 
-- **Lead assignment:** At submission, active consultants are queried (restricted to the requested showroom when provided) and the consultant with the fewest existing leads is selected. Assignment is immediate and recorded in LeadAssignment. This least-loaded starter policy has no capacity limits, working hours, alert delivery, or assignment-failure queue.
-- **Five-minute target:** New lead assignment is immediate, but no email/SMS/push notifier is configured. The brief's five-minute target is not an implemented notification SLA.
-- **Test-drive safety:** A request must reference an open, future slot at the selected active showroom and an `isDemo` vehicle whose status is AVAILABLE. The slot is reserved with a conditional update and a unique booking constraint inside one transaction. `UC-1190` is BOOKED, not a demo vehicle, and cannot be booked.
+- **Lead assignment:** At submission, active consultants are filtered to those assigned to both the selected showroom and interested model. Their IDs are ordered consistently; a persisted showroom/model cursor advances to the next consultant for each lead. Assignment history, the assigned timestamp, and an internal acknowledgement are written in the same serializable transaction as the lead. If no eligible consultant exists, the lead is created with no assignee and an internal unassigned acknowledgement for the admin queue. Reassignment requires an admin, or the currently assigned consultant choosing an active consultant who remains eligible for that showroom/model.
+- **Five-minute response target:** Automatic assignment is attempted synchronously during lead creation, rather than queued for a later job. The dashboard counts from lead receipt and marks the five-minute response target. This is not a guaranteed SLA: there are no working-hour/capacity rules, external alert delivery, or scheduled escalation. Internal acknowledgement records do not send email, SMS, or WhatsApp.
+- **Round-robin limitations:** The cursor is scoped only by showroom/model and distributes assignments evenly by assignment count, not workload or staff availability. Serializable transaction conflicts are retried up to three times. If that still fails, the request returns an error rather than falsely reporting success. Consultants must have explicit model eligibility; unmatched leads stay in the admin queue until an eligible consultant or specialty is configured.
+- **Test-drive safety:** The buyer selects an available non-demo inventory vehicle of interest separately from an available demo vehicle. A request must reference an open, future slot at the selected active showroom. A conditional slot update and unique booking constraint prevent two confirmed bookings for the same slot; the booking and lead are created atomically. `NEW-H-02` is not presumed to be a demo car, and `UC-1190` is BOOKED, not a demo vehicle, and cannot be booked.
 - **Price separation:** New inventory stores an ex-showroom price; used inventory stores a listing price. Neither is represented as an on-road price. A valid city/variant pricing row is selected by current date, then the server calculates `ex-showroom + round(ex-showroom × roadTaxBasisPoints / 10,000) + registration + insurance + accessories + other charges`. Invalid, incomplete, or expired records do not produce totals. The buyer sees the breakup, validity dates, change notice, and assumption flag.
 - **AI:** Gemini is not yet integrated. Draft records can be edited/approved by authorized consultants, and approval does not send a reply.
 - **Consent:** Contact permission is required for an enquiry/test-drive request. The optional marketing choice (including a refusal) is separately recorded; buyer settings append future preference changes.

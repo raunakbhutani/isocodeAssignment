@@ -22,6 +22,7 @@ const showroomNames = [
 const demoAccounts = [
   { name: "Assumed Administrator", email: "admin@drivehub.example.invalid", role: "ADMIN" },
   { name: "Assumed Consultant One", email: "consultant.one@drivehub.example.invalid", role: "CONSULTANT", showroomIndex: 0 },
+  { name: "Assumed Consultant Four", email: "consultant.four@drivehub.example.invalid", role: "CONSULTANT", showroomIndex: 0 },
   { name: "Assumed Consultant Two", email: "consultant.two@drivehub.example.invalid", role: "CONSULTANT", showroomIndex: 1 },
   { name: "Assumed Consultant Three", email: "consultant.three@drivehub.example.invalid", role: "CONSULTANT", showroomIndex: 2 },
   { name: "Assumed Buyer One", email: "buyer.one@drivehub.example.invalid", role: "BUYER" },
@@ -122,7 +123,7 @@ async function seedAssumedPricing(variant, city) {
   });
 }
 
-async function seedAssumedAccounts(showrooms) {
+async function seedAssumedAccounts(showrooms, modelIdsByName) {
   const passwordHash = await hash(demoPassword, 12);
   const usersByEmail = {};
   for (const account of demoAccounts) {
@@ -147,10 +148,21 @@ async function seedAssumedAccounts(showrooms) {
     usersByEmail[account.email] = user.id;
 
     if (account.role === "CONSULTANT") {
-      await prisma.consultant.upsert({
+      const consultant = await prisma.consultant.upsert({
         where: { userId: user.id },
         update: { showroomId: showrooms[account.showroomIndex].id, isActive: true },
         create: { userId: user.id, showroomId: showrooms[account.showroomIndex].id },
+        select: { id: true },
+      });
+      const eligibleModelNames = account.email.includes("consultant.four")
+        ? ["Model H"]
+        : Object.keys(modelIdsByName);
+      await prisma.consultantModel.createMany({
+        data: eligibleModelNames.map((name) => ({
+          consultantId: consultant.id,
+          modelId: modelIdsByName[name],
+        })),
+        skipDuplicates: true,
       });
     }
   }
@@ -191,14 +203,10 @@ async function seedDemoCarsAndSlots(showrooms) {
     startsAt.setHours(index === 0 ? 11 : 14, 0, 0, 0);
     const endsAt = new Date(startsAt.getTime() + 30 * 60 * 1000);
     await prisma.testDriveSlot.upsert({
-      where: {
-        demoVehicleStockId_startsAt: {
-          demoVehicleStockId: record.stockId,
-          startsAt,
-        },
-      },
-      update: { showroomId: showrooms[0].id, endsAt },
+      where: { id: `ASSUMED-SLOT-${record.stockId}` },
+      update: {},
       create: {
+        id: `ASSUMED-SLOT-${record.stockId}`,
         demoVehicleStockId: record.stockId,
         showroomId: showrooms[0].id,
         startsAt,
@@ -246,6 +254,11 @@ async function seedAssumedLeads(city, showrooms, usersByEmail) {
       select: { id: true },
     });
     if (!consultant) throw new Error(`Missing seeded consultant for ${record.reference}.`);
+    const vehicle = await prisma.vehicleInventory.findUnique({
+      where: { stockId: record.stockId },
+      select: { variantId: true, variant: { select: { modelId: true } } },
+    });
+    if (!vehicle) throw new Error(`Missing seeded vehicle for ${record.reference}.`);
     await prisma.lead.upsert({
       where: { reference: record.reference },
       update: {},
@@ -256,15 +269,31 @@ async function seedAssumedLeads(city, showrooms, usersByEmail) {
         email: record.email,
         phone: record.phone,
         message: record.message,
+        budgetInr: record.stockId === "NEW-H-02" ? 1500000 : 900000,
+        purchaseTimeline: record.stockId === "NEW-H-02" ? "WITHIN_1_MONTH" : "ONE_TO_THREE_MONTHS",
         source: record.source,
         status: record.status,
         vehicleStockId: record.stockId,
+        variantId: vehicle.variantId,
         cityId: city.id,
         requestedShowroomId: showrooms[record.showroomIndex].id,
         assignedConsultantId: consultant.id,
         assignedAt: new Date(),
         firstRespondedAt: record.status === "CONTACTED" ? new Date() : null,
-        assignments: { create: { consultantId: consultant.id } },
+        assignments: {
+          create: {
+            consultantId: consultant.id,
+            showroomId: showrooms[record.showroomIndex].id,
+            modelId: vehicle.variant.modelId,
+          },
+        },
+        notifications: {
+          create: {
+            recipientConsultantId: consultant.id,
+            type: "LEAD_ASSIGNED",
+            message: "Assumed sample lead assigned to consultant. Internal acknowledgement only; no external message was sent.",
+          },
+        },
         consentRecords: {
           create: {
             type: "CONTACT",
@@ -280,13 +309,15 @@ async function seedAssumedLeads(city, showrooms, usersByEmail) {
 try {
   const { city, showrooms } = await seedCityAndShowrooms();
   let newHVariant;
+  const modelIdsByName = {};
   for (const record of officialInventory) {
     const seeded = await seedVehicle(record, { isOfficial: true });
     if (record.stockId === "NEW-H-02") newHVariant = seeded.variant;
+    modelIdsByName[record.model] = seeded.model.id;
   }
   if (!newHVariant) throw new Error("Official NEW-H-02 variant missing from seed data.");
   await seedAssumedPricing(newHVariant, city);
-  const usersByEmail = await seedAssumedAccounts(showrooms);
+  const usersByEmail = await seedAssumedAccounts(showrooms, modelIdsByName);
   await seedDemoCarsAndSlots(showrooms);
   await seedAssumedLeads(city, showrooms, usersByEmail);
   console.info("Seeded three official vehicles and explicitly assumed demo data.");

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export default function ResponseTimer({ receivedAt }) {
+export default function ResponseTimer({ receivedAt, firstRespondedAt }) {
   const [minutes, setMinutes] = useState(null);
 
   useEffect(() => {
@@ -15,5 +15,8 @@ export default function ResponseTimer({ receivedAt }) {
     return () => clearInterval(intervalId);
   }, [receivedAt]);
 
-  return <>{minutes === null ? "Calculating response time..." : `${minutes} min since receipt`}</>;
+  if (firstRespondedAt) return <>Responded within {Math.max(0, Math.floor((new Date(firstRespondedAt).getTime() - new Date(receivedAt).getTime()) / 60000))} min</>;
+  if (minutes === null) return <>Calculating response time...</>;
+  if (minutes >= 5) return <>Response target exceeded · {minutes} min</>;
+  return <>Target: 5 min · {5 - minutes} min remaining</>;
 }

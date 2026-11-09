@@ -6,7 +6,7 @@ A phased full-stack dealership application for Company A in Lucknow, Uttar Prade
 
 ## Current implementation phase
 
-The app includes database-backed public inventory and vehicle details, enquiry and test-drive submission, consultant lead access, consent preference capture, an admin inventory/model/variant/image editor, and city-specific on-road pricing. Gemini generation and real image uploads are not implemented.
+The app includes database-backed public inventory and vehicle details, enquiry and test-drive submission, showroom/model-based consultant lead assignment, an internal lead acknowledgement, consultant lead access, consent preference capture, an admin inventory/model/variant/image editor, and city-specific on-road pricing. Gemini generation, external messaging, and real image uploads are not implemented.
 
 ## Local setup
 
@@ -35,9 +35,9 @@ The seed is repeatable and upserts these three stock IDs without changing their 
 
 ## Assumed development accounts and demo data
 
-The seed creates three showrooms in Lucknow, two demo cars and future test-drive slots, three consultants assigned one per showroom, two buyers, one administrator, and two illustrative assigned leads. Their names, identities, demo vehicles, slots, lead details, and zero-only phone placeholders are assumed test data, not Company A business facts. Email addresses use the reserved `.invalid` domain. Every seeded account gets the password from `DEMO_ACCOUNT_PASSWORD`; it is hashed with bcrypt before storage and is never printed. Do not reuse this development password in a deployed environment.
+The seed creates three showrooms in Lucknow, two demo cars and future test-drive slots, four consultants across the three showrooms, two buyers, one administrator, and two illustrative assigned leads. Two consultants share the first showroom and Model H eligibility so the round-robin behavior can be exercised. Stable slot IDs prevent repeated seeds from adding more slots or reopening already reserved slots. Their names, identities, demo vehicles, slots, lead details, and zero-only phone placeholders are assumed test data, not Company A business facts. Email addresses use the reserved `.invalid` domain. Every seeded account gets the password from `DEMO_ACCOUNT_PASSWORD`; it is hashed with bcrypt before storage and is never printed. Do not reuse this development password in a deployed environment.
 
-The sample account email addresses are `admin@drivehub.example.invalid`, `consultant.one@drivehub.example.invalid` through `consultant.three@drivehub.example.invalid`, and `buyer.one@drivehub.example.invalid` / `buyer.two@drivehub.example.invalid`.
+The sample account email addresses are `admin@drivehub.example.invalid`, `consultant.one@drivehub.example.invalid` through `consultant.four@drivehub.example.invalid`, and `buyer.one@drivehub.example.invalid` / `buyer.two@drivehub.example.invalid`.
 
 One clearly marked assumed CityPrice is seeded for NEW-H-02 in Lucknow so the pricing flow can be demonstrated. `UC-1190` remains BOOKED and is excluded from all demo-car slots. Official inventory upserts create the supplied records once and do not overwrite later admin edits on repeated seeds.
 
@@ -60,7 +60,7 @@ Admin-managed vehicle images accept HTTPS `images.unsplash.com` URLs only and ar
 - The sample city-price amounts above are assumptions used to exercise the pricing flow. Replace them with client-approved tax, registration, insurance, accessory, and other-charge values before presenting an estimate as actual dealer pricing.
 - Previous-owner counts and inspection text on the two official used vehicles are assumed demo details; registration numbers are not created.
 - Seeded consultant and buyer accounts, demo cars, and booking slots are assumed, fictional development data. Production staff accounts and notification-provider settings need client approval.
-- Lead assignment is immediate, least-loaded by current lead count, and scoped to the requested showroom when one is selected. There is no email/SMS notification integration; the five-minute response requirement is a business target, not a notification guarantee.
+- Lead assignment is attempted immediately using active consultants eligible for both the selected showroom and interested model. A persisted round-robin cursor rotates between eligible consultants. If none qualify, the lead remains unassigned in the admin queue. The five-minute response timer is measured from lead creation; the assignment acknowledgement is internal only. There is no email/SMS/WhatsApp notification integration, so the five-minute target is monitored but not guaranteed.
 - Gemini output is not connected. Consultants can save and approve manual drafts, but approval never sends a message.
 
 ## Backend and authorization
@@ -71,7 +71,7 @@ Admin-managed vehicle images accept HTTPS `images.unsplash.com` URLs only and ar
 - Public route: `GET /api/prices?cityId=...&variantId=...` calculates an itemized on-road estimate on the server from the currently valid city/variant record and returns whether values are assumed.
 - Protected routes: `GET /api/consultant/leads` and `GET /api/consultant/leads/:id` require consultant/admin access; consultants only receive assigned leads.
 - Server Actions cover buyer registration, enquiry/test-drive requests, consent updates, consultant status/draft/reassignment operations, and admin inventory, vehicle images, model/variant, city pricing, showroom, and consultant operations.
-- An enquiry records contact consent, assigns an active consultant immediately, and writes a LeadAssignment history record. A test-drive request additionally reserves an open slot in a transaction. The slot must belong to an active showroom and an available demo vehicle, so the booked official used unit cannot be booked.
+- An enquiry records contact consent, assigns an eligible consultant immediately when one exists, and writes a LeadAssignment history record. A test-drive request additionally reserves an open slot in a transaction. The buyer's vehicle of interest is separate from the demo vehicle whose time slot is reserved. The slot must belong to an active showroom and an available demo vehicle, so NEW-H-02 is not assumed to be a demo car and the booked official used unit cannot be booked.
 - Demo account passwords are shared for convenient local testing only. Configure `.env` privately and do not commit secrets.
 
 ## Checks

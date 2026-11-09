@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { leadInputSchema } from "@/lib/validation";
-import { createAssignedLead } from "@/lib/lead-service";
-import { isBookableDemoSlot } from "@/lib/test-drive";
+import { createAssignedLead, withSerializableTransaction } from "@/lib/lead-service";
+import { BookingConflictError, isBookableDemoSlot } from "@/lib/test-drive";
 
 function parseLeadForm(formData) {
   return leadInputSchema.safeParse({
@@ -16,6 +16,8 @@ function parseLeadForm(formData) {
     message: formData.get("message") || "",
     vehicleStockId: formData.get("vehicleStockId") || "",
     showroomId: formData.get("showroomId") || "",
+    budgetInr: formData.get("budgetInr") || "",
+    purchaseTimeline: formData.get("purchaseTimeline") || "",
     contactConsent: formData.get("contactConsent") === "on",
     marketingConsent: formData.get("marketingConsent") === "on",
   });
@@ -29,7 +31,7 @@ export async function submitEnquiry(_previousState, formData) {
   if (user && user.role !== "BUYER") {
     return { error: "Only buyer accounts can submit a customer enquiry." };
   }
-  const lead = await prisma.$transaction((tx) =>
+  const lead = await withSerializableTransaction(prisma, (tx) =>
     createAssignedLead(tx, {
       ...parsed.data,
       buyerUserId: user?.id,
@@ -37,11 +39,16 @@ export async function submitEnquiry(_previousState, formData) {
     }),
   );
   revalidatePath("/consultant/leads");
-  return { success: `Enquiry received. Reference: ${lead.reference}` };
+  return {
+    success: lead.assignedConsultant
+      ? `Enquiry received and assigned to ${lead.assignedConsultant.user.name}. Reference: ${lead.reference}`
+      : `Enquiry received and placed in the admin assignment queue. Reference: ${lead.reference}`,
+  };
 }
 
 const bookingSchema = leadInputSchema.extend({
   vehicleStockId: z.string().min(1).max(40),
+  demoVehicleStockId: z.string().min(1).max(40),
   showroomId: z.string().min(1).max(64),
   slotId: z.string().min(1).max(64),
 });
@@ -54,7 +61,10 @@ export async function requestTestDrive(_previousState, formData) {
     message: formData.get("message") || "",
     vehicleStockId: formData.get("vehicleStockId") || "",
     showroomId: formData.get("showroomId") || "",
+    demoVehicleStockId: formData.get("demoVehicleStockId") || "",
     slotId: formData.get("slotId") || "",
+    budgetInr: formData.get("budgetInr") || "",
+    purchaseTimeline: formData.get("purchaseTimeline") || "",
     contactConsent: formData.get("contactConsent") === "on",
     marketingConsent: formData.get("marketingConsent") === "on",
   });
@@ -65,40 +75,89 @@ export async function requestTestDrive(_previousState, formData) {
     return { error: "Only buyer accounts can request a test drive." };
   }
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await withSerializableTransaction(prisma, async (tx) => {
+    const now = new Date();
+    const interestedVehicle = await tx.vehicleInventory.findFirst({
+      where: {
+        stockId: parsed.data.vehicleStockId,
+        isDemo: false,
+        status: "AVAILABLE",
+      },
+      select: {
+        stockId: true,
+        variant: { select: { name: true, model: { select: { name: true } } } },
+      },
+    });
+    if (!interestedVehicle) {
+      throw new BookingConflictError("The selected vehicle is not available for a test-drive enquiry.");
+    }
     const slot = await tx.testDriveSlot.findUnique({
       where: { id: parsed.data.slotId },
-      include: { showroom: true, demoVehicle: true },
+      include: {
+        showroom: true,
+        demoVehicle: {
+          include: { variant: { include: { model: true } } },
+        },
+      },
     });
-    if (!isBookableDemoSlot(slot, parsed.data.showroomId, parsed.data.vehicleStockId)) {
-      throw new Error("That test-drive slot is unavailable.");
+    if (!isBookableDemoSlot(
+      slot,
+      parsed.data.showroomId,
+      parsed.data.demoVehicleStockId,
+      now,
+    )) {
+      throw new BookingConflictError("That test-drive slot is unavailable.");
     }
 
     const reserved = await tx.testDriveSlot.updateMany({
-      where: { id: slot.id, isOpen: true },
+      where: { id: slot.id, isOpen: true, startsAt: { gt: now } },
       data: { isOpen: false },
     });
-    if (reserved.count !== 1) throw new Error("That test-drive slot was just booked.");
+    if (reserved.count !== 1) throw new BookingConflictError("That test-drive slot was just booked.");
 
     const lead = await createAssignedLead(tx, {
       ...parsed.data,
       buyerUserId: user?.id,
       source: "TEST_DRIVE",
+      status: "TEST_DRIVE_SCHEDULED",
     });
     await tx.testDriveBooking.create({
       data: {
         leadId: lead.id,
         slotId: slot.id,
         buyerUserId: user?.id,
+        status: "CONFIRMED",
       },
       select: { id: true },
     });
-    return lead;
+    return {
+      ...lead,
+      startsAt: slot.startsAt.toISOString(),
+      showroomName: slot.showroom.name,
+      demoVehicleName: `${slot.demoVehicle.variant.model.name} ${slot.demoVehicle.variant.name}`,
+      interestedVehicle: `${interestedVehicle.variant.model.name} ${interestedVehicle.variant.name}`,
+    };
+  }).catch((error) => {
+    if (error instanceof BookingConflictError) return { error: error.message };
+    if (error?.code === "P2002") return { error: "That test-drive slot was just booked." };
+    throw error;
   });
+  if (result.error) return result;
 
   revalidatePath("/book-test-drive");
   revalidatePath("/consultant/leads");
-  return { success: `Request received. Reference: ${result.reference}` };
+  return {
+    success: result.assignedConsultant
+      ? `Test drive confirmed and assigned to ${result.assignedConsultant.user.name}.`
+      : "Test drive confirmed. The request is in the admin assignment queue.",
+    confirmation: {
+      reference: result.reference,
+      startsAt: result.startsAt,
+      showroomName: result.showroomName,
+      demoVehicleName: result.demoVehicleName,
+      interestedVehicle: result.interestedVehicle,
+    },
+  };
 }
 
 export async function setBuyerConsent(_previousState, formData) {

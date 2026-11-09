@@ -7,6 +7,20 @@ import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
 const idSchema = z.string().min(1).max(64);
+
+async function validateConsultantSetup(showroomId, modelIds) {
+  const [showroom, models] = await Promise.all([
+    prisma.showroom.findFirst({
+      where: { id: showroomId, isActive: true },
+      select: { id: true },
+    }),
+    prisma.carModel.findMany({
+      where: { id: { in: modelIds } },
+      select: { id: true },
+    }),
+  ]);
+  return Boolean(showroom) && models.length === modelIds.length;
+}
 const ownerCountSchema = z.preprocess(
   (value) => value === "" || value == null ? null : value,
   z.coerce.number().int().min(0).max(100).nullable(),
@@ -377,8 +391,15 @@ export async function createConsultant(_previousState, formData) {
     email: z.string().trim().email().max(254).transform((email) => email.toLowerCase()),
     password: z.string().min(12).max(128).refine((password) => Buffer.byteLength(password, "utf8") <= 72),
     showroomId: idSchema,
-  }).safeParse(Object.fromEntries(formData));
+    modelIds: z.array(idSchema).max(100).refine((ids) => new Set(ids).size === ids.length),
+  }).safeParse({
+    ...Object.fromEntries(formData),
+    modelIds: formData.getAll("modelIds"),
+  });
   if (!parsed.success) return { error: "Check the consultant name, email, password, and showroom." };
+  if (!await validateConsultantSetup(parsed.data.showroomId, parsed.data.modelIds)) {
+    return { error: "Choose an active showroom and valid model specialties." };
+  }
 
   const passwordHash = await hash(parsed.data.password, 12);
   try {
@@ -393,7 +414,11 @@ export async function createConsultant(_previousState, formData) {
         select: { id: true },
       });
       await tx.consultant.create({
-        data: { userId: user.id, showroomId: parsed.data.showroomId },
+        data: {
+          userId: user.id,
+          showroomId: parsed.data.showroomId,
+          models: { create: parsed.data.modelIds.map((modelId) => ({ modelId })) },
+        },
         select: { id: true },
       });
     });
@@ -411,20 +436,36 @@ export async function updateConsultant(_previousState, formData) {
     consultantId: idSchema,
     showroomId: idSchema,
     isActive: z.enum(["true", "false"]),
+    modelIds: z.array(idSchema).max(100).refine((ids) => new Set(ids).size === ids.length),
   }).safeParse({
     consultantId: formData.get("consultantId"),
     showroomId: formData.get("showroomId"),
     isActive: formData.get("isActive"),
+    modelIds: formData.getAll("modelIds"),
   });
   if (!parsed.success) return { error: "Select a valid showroom and consultant status." };
-  const updated = await prisma.consultant.updateMany({
-    where: { id: parsed.data.consultantId },
-    data: {
-      showroomId: parsed.data.showroomId,
-      isActive: parsed.data.isActive === "true",
-    },
+  if (!await validateConsultantSetup(parsed.data.showroomId, parsed.data.modelIds)) {
+    return { error: "Choose an active showroom and valid model specialties." };
+  }
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.consultant.updateMany({
+      where: { id: parsed.data.consultantId },
+      data: {
+        showroomId: parsed.data.showroomId,
+        isActive: parsed.data.isActive === "true",
+      },
+    });
+    if (updated.count !== 1) throw new Error("Consultant not found.");
+    await tx.consultantModel.deleteMany({ where: { consultantId: parsed.data.consultantId } });
+    if (parsed.data.modelIds.length) {
+      await tx.consultantModel.createMany({
+        data: parsed.data.modelIds.map((modelId) => ({
+          consultantId: parsed.data.consultantId,
+          modelId,
+        })),
+      });
+    }
   });
-  if (updated.count !== 1) throw new Error("Consultant not found.");
   revalidatePath("/admin");
   return { success: "Consultant assignment updated." };
 }

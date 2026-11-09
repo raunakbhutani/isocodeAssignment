@@ -45,6 +45,7 @@ export default async function AdminPage() {
       include: {
         user: { select: { name: true, email: true } },
         showroom: { select: { name: true } },
+        models: { include: { model: true } },
       },
       orderBy: [{ showroom: { name: "asc" } }, { user: { name: "asc" } }],
     }),

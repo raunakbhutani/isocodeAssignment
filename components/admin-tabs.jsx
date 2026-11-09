@@ -258,13 +258,14 @@ export default function AdminTabs({ inventory, models, variants, newVariants, ci
                   {showrooms.map((showroom) => <option key={showroom.id} value={showroom.id}>{showroom.name}</option>)}
                 </select>
               </Field>
+              <ModelSpecialties models={models} />
             </div>
           </AdminActionForm>
         </Card>
         <Card className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-left text-xs">
+          <table className="w-full min-w-[760px] text-left text-xs">
             <thead><tr className="border-b border-[var(--line)] text-[var(--muted)]">
-              <th className="px-4 py-3">Consultant</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Showroom</th><th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Consultant</th><th className="px-4 py-3">Email</th><th className="px-4 py-3" colSpan="2">Assignment and eligible models</th>
             </tr></thead>
             <tbody>{consultants.map((consultant) => (
               <tr key={consultant.id} className="border-b border-[var(--line)] last:border-0">
@@ -283,6 +284,7 @@ export default function AdminTabs({ inventory, models, variants, newVariants, ci
                         <option value="true">Active</option><option value="false">Inactive</option>
                       </select>
                     </Field>
+                    <ModelSpecialties models={models} selected={consultant.models} />
                   </AdminActionForm>
                 </td>
               </tr>
@@ -430,6 +432,27 @@ function CityFields({ city }) {
       <Field label="State"><input className={fieldClass} name="state" defaultValue={city?.state ?? ""} required maxLength="100" /></Field>
       <Field label="Country"><input className={fieldClass} name="country" defaultValue={city?.country ?? "India"} required maxLength="100" /></Field>
     </div>
+  );
+}
+
+function ModelSpecialties({ models, selected = [] }) {
+  return (
+    <fieldset className="sm:col-span-2 lg:col-span-3">
+      <legend className="form-label">Eligible models for lead assignment</legend>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+        {models.map((model) => (
+          <label key={model.id} className="flex items-center gap-2 text-xs text-[var(--ink)]">
+            <input
+              type="checkbox"
+              name="modelIds"
+              value={model.id}
+              defaultChecked={selected.some((entry) => entry.modelId === model.id)}
+            />
+            {model.name}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 

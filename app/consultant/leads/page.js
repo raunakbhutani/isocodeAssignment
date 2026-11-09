@@ -9,41 +9,52 @@ export const metadata = { title: "Consultant dashboard | DriveHub" };
 const statusLabels = {
   NEW: "New",
   CONTACTED: "Contacted",
-  QUALIFIED: "Qualified",
+  NEGOTIATION: "Negotiation",
   TEST_DRIVE_SCHEDULED: "Test drive scheduled",
-  WON: "Won",
+  CONVERTED: "Converted",
   LOST: "Lost",
 };
 
 export default async function ConsultantLeadsPage() {
-  await requirePageRole("CONSULTANT", "ADMIN");
+  const user = await requirePageRole("CONSULTANT", "ADMIN");
   const records = await getAssignedLeads();
   const leads = records.map((lead) => {
     return {
       id: lead.id,
+      reference: lead.reference,
       name: lead.customerName,
-      vehicleStockId: lead.vehicle?.stockId ?? "No vehicle selected",
+      vehicle: lead.variant ? `${lead.variant.model.name} ${lead.variant.name}` : lead.vehicle?.stockId ?? "No vehicle selected",
+      vehicleStockId: lead.vehicle?.stockId ?? "No stock selected",
       source: lead.source.replaceAll("_", " "),
       status: statusLabels[lead.status],
       assignedTo: lead.assignedConsultant?.user.name ?? "Unassigned",
+      showroom: lead.requestedShowroom?.name ?? "No showroom selected",
       receivedAt: lead.receivedAt.toISOString(),
+      assignedAt: lead.assignedAt?.toISOString() ?? null,
+      firstRespondedAt: lead.firstRespondedAt?.toISOString() ?? null,
+      booking: lead.testDriveBookings[0] ? {
+        startsAt: lead.testDriveBookings[0].slot.startsAt.toISOString(),
+        showroom: lead.testDriveBookings[0].slot.showroom.name,
+        demoVehicle: `${lead.testDriveBookings[0].slot.demoVehicle.variant.model.name} ${lead.testDriveBookings[0].slot.demoVehicle.variant.name}`,
+      } : null,
     };
   });
   const newLeads = records.filter((lead) => lead.status === "NEW").length;
   const activeLeads = records.length;
+  const unassignedLeads = records.filter((lead) => !lead.assignedConsultantId).length;
 
   return (
-    <StaffLayout title="Consultant dashboard" description="Lead overview, inbox, status, and response-time context for the consultant team.">
+    <StaffLayout title={user.role === "ADMIN" ? "Lead inbox and admin queue" : "Consultant dashboard"} description="Lead details, showroom and consultant assignment, test-drive bookings, response target, and status.">
       <div className="mb-6">
         <InfoNotice title="Response target from the brief:">
-          New website leads are assigned immediately to an active consultant. The five-minute target is a business response goal, not an automated notification.
+          Assignment is attempted immediately using showroom/model eligibility. The five-minute response target is monitored here; no WhatsApp or SMS is sent.
         </InfoNotice>
       </div>
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         {[
-          ["Demo inbox", activeLeads, "Fictional placeholder leads"],
-          ["New demo leads", newLeads, "No live enquiries connected"],
-          ["Response goal", "< 5 min", "Business requirement"],
+          ["Visible leads", activeLeads, user.role === "ADMIN" ? "Includes unassigned admin queue" : "Current assignments only"],
+          ["New leads", newLeads, "Awaiting first response"],
+          ["Unassigned", unassignedLeads, user.role === "ADMIN" ? "Admin assignment required" : "Visible to admins only"],
         ].map(([label, value, note]) => (
           <div key={label} className="border border-[var(--line)] bg-white p-5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">{label}</p>
@@ -52,7 +63,7 @@ export default async function ConsultantLeadsPage() {
           </div>
         ))}
       </div>
-      <LeadTable leads={leads} />
+      <LeadTable leads={leads} isAdmin={user.role === "ADMIN"} />
     </StaffLayout>
   );
 }

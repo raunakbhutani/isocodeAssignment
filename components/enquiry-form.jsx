@@ -4,66 +4,87 @@ import { useActionState } from "react";
 import { submitEnquiry } from "../app/actions/leads";
 import { InfoNotice } from "./ui";
 import { Button, Card } from "./ui/primitives";
-import { vehicles } from "../lib/mock-data";
 
 const initialState = { error: "", success: "" };
+const timelineOptions = [
+  ["IMMEDIATELY", "As soon as possible"],
+  ["WITHIN_1_MONTH", "Within a month"],
+  ["ONE_TO_THREE_MONTHS", "1–3 months"],
+  ["THREE_TO_SIX_MONTHS", "3–6 months"],
+  ["JUST_EXPLORING", "Just exploring"],
+];
 
-export default function EnquiryForm({ vehicleStockId = "" }) {
+export default function EnquiryForm({ vehicleStockId = "", vehicles, showrooms }) {
   const [state, formAction, isPending] = useActionState(submitEnquiry, initialState);
-  const vehicle = vehicles.find((item) => item.stockId === vehicleStockId);
 
   return (
     <Card className="p-5 sm:p-8">
-      <InfoNotice title="Lead assignment:">
-        Your contact details are shared with an assigned Company A consultant only after you submit.
+      <InfoNotice title="Lead assignment and privacy:">
+        Your details are used to respond to this enquiry. We will route it to a consultant matching your showroom and vehicle interest when possible. No external message is sent automatically.
       </InfoNotice>
       <form action={formAction} className="mt-6 space-y-5">
         <div className="grid gap-5 sm:grid-cols-2">
-          <label className="form-label">
-            Your name
+          <Field label="Full name">
             <input className="form-input" name="name" autoComplete="name" placeholder="Full name" required minLength="2" maxLength="100" />
-          </label>
-          <label className="form-label">
-            Phone
-            <input className="form-input" name="phone" type="tel" autoComplete="tel" placeholder="Phone number" required />
-          </label>
+          </Field>
+          <Field label="Email">
+            <input className="form-input" name="email" type="email" autoComplete="email" placeholder="you@example.com" required />
+          </Field>
         </div>
-        <label className="form-label">
-          Email
-          <input className="form-input" name="email" type="email" autoComplete="email" placeholder="you@example.com" />
-        </label>
-        <label className="form-label">
-          Vehicle of interest
-          <select className="form-input" name="vehicleStockId" defaultValue={vehicle?.stockId ?? ""}>
-            <option value="">Choose a vehicle</option>
-            {vehicles.map((item) => (
-              <option key={item.stockId} value={item.stockId}>
-                {item.model} {item.variant} · {item.stockId} · {item.status}
+        <Field label="Phone">
+          <input className="form-input" name="phone" type="tel" autoComplete="tel" placeholder="Phone number" required />
+        </Field>
+        <Field label="Interested model and variant">
+          <select className="form-input" name="vehicleStockId" defaultValue={vehicleStockId} required>
+            <option value="" disabled>Select a vehicle</option>
+            {vehicles.map((vehicle) => (
+              <option key={vehicle.stockId} value={vehicle.stockId}>
+                {vehicle.model} · {vehicle.variant} · {vehicle.stockId} ({vehicle.status.toLowerCase()})
               </option>
             ))}
           </select>
-        </label>
-        <label className="form-label">
-          Your question
+        </Field>
+        <Field label="Preferred showroom">
+          <select className="form-input" name="showroomId" defaultValue="" required>
+            <option value="" disabled>Select a showroom</option>
+            {showrooms.map((showroom) => <option key={showroom.id} value={showroom.id}>{showroom.name}</option>)}
+          </select>
+        </Field>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Budget (₹, optional)">
+            <input className="form-input" type="number" name="budgetInr" min="0" max="2000000000" />
+          </Field>
+          <Field label="Purchase timeline">
+            <select className="form-input" name="purchaseTimeline" defaultValue="">
+              <option value="">Select a timeline</option>
+              {timelineOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </Field>
+        </div>
+        <Field label="Additional message">
           <textarea className="form-input min-h-32 resize-y py-3" name="message" placeholder="How can our team help?" maxLength="2000" />
-        </label>
+        </Field>
         <label className="flex items-start gap-3 text-xs leading-5 text-[var(--muted)]">
           <input className="mt-1 accent-[var(--accent)]" type="checkbox" name="contactConsent" required />
-          Company A may contact me about this enquiry.
+          I have read the privacy notice and consent to Company A using my details to respond to this enquiry.
         </label>
         <label className="flex items-start gap-3 text-xs leading-5 text-[var(--muted)]">
           <input className="mt-1 accent-[var(--accent)]" type="checkbox" name="marketingConsent" />
           I also agree to receive optional marketing messages.
         </label>
         {(state.error || state.success) && (
-          <p role={state.error ? "alert" : "status"} className="text-sm text-[var(--muted)]">
+          <p role={state.error ? "alert" : "status"} className={`text-sm ${state.error ? "text-red-700" : "text-emerald-800"}`}>
             {state.error || state.success}
           </p>
         )}
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending || vehicles.length === 0 || showrooms.length === 0}>
           {isPending ? "Sending..." : "Send enquiry"}
         </Button>
       </form>
     </Card>
   );
+}
+
+function Field({ label, children }) {
+  return <label className="form-label">{label}{children}</label>;
 }

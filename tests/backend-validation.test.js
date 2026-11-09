@@ -7,7 +7,7 @@ const validLead = {
   phone: "+91 98765 43210",
   message: "Please share details.",
   vehicleStockId: "NEW-H-02",
-  showroomId: "",
+  showroomId: "clh1234567890123456789012",
   contactConsent: true,
   marketingConsent: false,
 };
@@ -31,5 +31,10 @@ describe("lead input validation", () => {
       phone: "call me",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("requires a selected vehicle and showroom", () => {
+    expect(leadInputSchema.safeParse({ ...validLead, vehicleStockId: "" }).success).toBe(false);
+    expect(leadInputSchema.safeParse({ ...validLead, showroomId: "" }).success).toBe(false);
   });
 });

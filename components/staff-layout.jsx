@@ -27,7 +27,7 @@ export default function StaffLayout({ title, description, children }) {
           </nav>
         </div>
         <div className="mb-6">
-          <DemoNotice>Lead and staff records are fictional demo data. Inventory values shown here match the supplied brief; no changes are saved.</DemoNotice>
+          <DemoNotice>Seeded accounts, showrooms, slots, and sample leads are assumed demo data. New bookings and lead updates are saved to the configured database. No external messages are sent.</DemoNotice>
         </div>
         {children}
       </Container>

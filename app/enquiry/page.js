@@ -1,13 +1,40 @@
 import { Suspense } from "react";
 import EnquiryForm from "../../components/enquiry-form";
 import { Container, Eyebrow } from "../../components/ui";
+import { connection } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export const metadata = { title: "Send an enquiry | DriveHub" };
 
 async function EnquiryFormWithVehicle({ searchParams }) {
+  await connection();
   const params = await searchParams;
   const vehicleStockId = typeof params?.vehicle === "string" ? params.vehicle : "";
-  return <EnquiryForm vehicleStockId={vehicleStockId} />;
+  const [inventory, showrooms] = await Promise.all([
+    prisma.vehicleInventory.findMany({
+      where: { isDemo: false },
+      select: {
+        stockId: true,
+        type: true,
+        status: true,
+        variant: { select: { name: true, model: { select: { name: true } } } },
+      },
+      orderBy: { stockId: "asc" },
+    }),
+    prisma.showroom.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+  const vehicles = inventory.map((vehicle) => ({
+    stockId: vehicle.stockId,
+    type: vehicle.type,
+    status: vehicle.status,
+    model: vehicle.variant.model.name,
+    variant: vehicle.variant.name,
+  }));
+  return <EnquiryForm vehicleStockId={vehicleStockId} vehicles={vehicles} showrooms={showrooms} />;
 }
 
 export default function EnquiryPage({ searchParams }) {
@@ -18,7 +45,7 @@ export default function EnquiryPage({ searchParams }) {
           <Eyebrow>Talk to Company A</Eyebrow>
           <h1 className="mt-4 text-4xl font-medium leading-tight tracking-[-0.05em] text-[var(--ink)] sm:text-6xl">Tell us what you’d like to know.</h1>
           <p className="mt-5 text-sm leading-7 text-[var(--muted)]">
-            Share a question about a listed vehicle. A real enquiry service and consultant assignment are not connected in this frontend phase.
+            Share what you are looking for and the right consultant will be selected for your showroom and vehicle interest when possible.
           </p>
         </div>
         <Suspense fallback={<div className="min-h-96 animate-pulse border border-[var(--line)] bg-white" />}>

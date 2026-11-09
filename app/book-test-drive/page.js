@@ -45,7 +45,25 @@ async function BookingForm({ searchParams }) {
       variant: slot.demoVehicle.variant.name,
     },
   }));
-  return <TestDriveForm slots={slotOptions} vehicleStockId={vehicleStockId} />;
+  const vehicles = await prisma.vehicleInventory.findMany({
+    where: { isDemo: false, status: "AVAILABLE" },
+    select: {
+      stockId: true,
+      variant: {
+        select: {
+          name: true,
+          model: { select: { name: true } },
+        },
+      },
+    },
+    orderBy: { stockId: "asc" },
+  });
+  const vehicleOptions = vehicles.map((vehicle) => ({
+    stockId: vehicle.stockId,
+    model: vehicle.variant.model.name,
+    variant: vehicle.variant.name,
+  }));
+  return <TestDriveForm slots={slotOptions} vehicles={vehicleOptions} vehicleStockId={vehicleStockId} />;
 }
 
 export default function TestDrivePage({ searchParams }) {
@@ -55,7 +73,7 @@ export default function TestDrivePage({ searchParams }) {
         <div>
           <Eyebrow>Test-drive request</Eyebrow>
           <h1 className="mt-4 text-4xl font-medium leading-tight tracking-[-0.05em] text-[var(--ink)] sm:text-6xl">Get to know the car from the driver’s seat.</h1>
-          <p className="mt-5 text-sm leading-7 text-[var(--muted)]">Choose an active showroom, demo car, and an open date and time from the database.</p>
+          <p className="mt-5 text-sm leading-7 text-[var(--muted)]">Choose an available vehicle of interest, then an active showroom and open time slot. A separate demo car is used for the appointment.</p>
           <div className="mt-8 border-l-2 border-[var(--accent)] pl-5">
             <p className="text-sm font-medium text-[var(--ink)]">What happens next?</p>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">A Company A consultant will follow up to confirm availability and answer your questions.</p>
