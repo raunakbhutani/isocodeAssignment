@@ -1,17 +1,23 @@
 import Link from "next/link";
-import { vehicles } from "../lib/mock-data";
 import VehicleCard from "../components/vehicle-card";
 import CarPhoto from "../components/car-photo";
 import { ButtonLink, Container, DemoNotice, Eyebrow, InfoNotice } from "../components/ui";
+import { connection } from "next/server";
+import { listPublicVehicles } from "@/lib/vehicle-queries";
 
 export const metadata = {
   title: "DriveHub | Company A · Brand X",
   description: "Explore new and used Brand X vehicles at Company A in Lucknow.",
 };
 
-export default function Home() {
-  const newVehicles = vehicles.filter((vehicle) => vehicle.type === "NEW");
-  const usedVehicles = vehicles.filter((vehicle) => vehicle.type === "USED");
+export default async function Home() {
+  await connection();
+  const [newVehicles, usedVehicles] = await Promise.all([
+    listPublicVehicles("NEW"),
+    listPublicVehicles("USED"),
+  ]);
+  const featuredNewVehicles = newVehicles.slice(0, 3);
+  const featuredUsedVehicles = usedVehicles.slice(0, 3);
 
   return (
     <main className="flex-1">
@@ -56,9 +62,9 @@ export default function Home() {
             </div>
             <Link href="/new-cars" className="hidden text-sm font-medium text-[var(--ink)] underline decoration-[var(--accent)] underline-offset-8 sm:block">All new cars ↗</Link>
           </div>
-          {newVehicles.length ? (
+          {featuredNewVehicles.length ? (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {newVehicles.map((vehicle) => <VehicleCard key={vehicle.stockId} vehicle={vehicle} />)}
+              {featuredNewVehicles.map((vehicle) => <VehicleCard key={vehicle.stockId} vehicle={vehicle} />)}
             </div>
           ) : <EmptyShowroom text="No new vehicle details are currently available." />}
         </Container>
@@ -74,8 +80,9 @@ export default function Home() {
             <Link href="/used-cars" className="hidden text-sm font-medium text-[var(--ink)] underline decoration-[var(--accent)] underline-offset-8 sm:block">All used cars ↗</Link>
           </div>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {usedVehicles.map((vehicle) => <VehicleCard key={vehicle.stockId} vehicle={vehicle} />)}
+            {featuredUsedVehicles.map((vehicle) => <VehicleCard key={vehicle.stockId} vehicle={vehicle} />)}
           </div>
+          {featuredUsedVehicles.length === 0 && <EmptyShowroom text="No used vehicle details are currently available." />}
           <div className="mt-7 sm:hidden">
             <ButtonLink href="/used-cars" variant="secondary" className="w-full">Browse used cars</ButtonLink>
           </div>

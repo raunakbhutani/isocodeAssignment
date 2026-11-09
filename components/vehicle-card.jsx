@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatPrice } from "../lib/format";
+import { displayAvailability, formatPrice } from "../lib/format";
 import CarPhoto from "./car-photo";
 import { Badge } from "./ui/primitives";
 
@@ -16,11 +16,11 @@ export default function VehicleCard({ vehicle, priority = false }) {
             className="transition-transform duration-500 group-hover:scale-[1.035]"
           />
           <span className="absolute left-4 top-4 bg-white/95 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--ink)]">
-            Placeholder photo
+            {vehicle.imageIsAssumed === false ? "Vehicle photo" : "Placeholder photo"}
           </span>
           <span className="absolute right-4 top-4">
             <Badge tone={vehicle.status === "AVAILABLE" ? "success" : "warning"}>
-              {vehicle.status === "AVAILABLE" ? "Available" : "Booked"}
+              {displayAvailability(vehicle.status)}
             </Badge>
           </span>
         </div>
@@ -46,7 +46,12 @@ export default function VehicleCard({ vehicle, priority = false }) {
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-[var(--line)] pt-3 text-xs text-[var(--muted)]">
           <span>{vehicle.fuel.charAt(0) + vehicle.fuel.slice(1).toLowerCase()}</span>
           <span>{vehicle.kilometres.toLocaleString("en-IN")} km</span>
-          {vehicle.type === "USED" && <span>Owners: not supplied</span>}
+          {vehicle.type === "USED" && (
+            <span>
+              Owners: {vehicle.previousOwners == null ? "not supplied" : vehicle.previousOwners}
+              {vehicle.detailsAreAssumed && " (assumed)"}
+            </span>
+          )}
         </div>
       </Link>
     </article>

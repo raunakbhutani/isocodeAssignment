@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { connection } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { calculateOnRoadPrice } from "@/lib/pricing";
+import { calculateOnRoadPrice, selectCityPrice } from "@/lib/pricing";
 
 export async function GET(request) {
   await connection();
@@ -13,49 +13,36 @@ export async function GET(request) {
   }
 
   const now = new Date();
-  const [inventory, cityPrice] = await Promise.all([
-    prisma.vehicleInventory.findFirst({
-      where: {
-        variantId,
-        type: "NEW",
-        priceType: "EX_SHOWROOM",
-        priceInr: { not: null },
-        isDemo: false,
-      },
-      select: { priceInr: true },
-      orderBy: { stockId: "asc" },
-    }),
-    prisma.cityPrice.findFirst({
-      where: {
-        cityId,
-        variantId,
-        effectiveFrom: { lte: now },
-        OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: now } }],
-      },
-      orderBy: { effectiveFrom: "desc" },
-      select: {
-        roadTaxBasisPoints: true,
-        registrationFeeInr: true,
-        insuranceInr: true,
-        otherChargesInr: true,
-        effectiveFrom: true,
-        effectiveUntil: true,
-      },
-    }),
-  ]);
-  if (!inventory || !cityPrice) {
+  const city = await prisma.city.findUnique({
+    where: { id: cityId },
+    select: { id: true },
+  });
+  if (!city) return NextResponse.json({ error: "City not found." }, { status: 404 });
+
+  const records = await prisma.cityPrice.findMany({
+    where: { cityId, variantId },
+    orderBy: { effectiveFrom: "desc" },
+  });
+  const cityPrice = selectCityPrice(records, cityId, variantId, now);
+  if (!cityPrice) {
     return NextResponse.json(
-      { error: "Approved ex-showroom price and current city pricing inputs are required." },
+      { error: "No valid city price is available for this vehicle and date." },
       { status: 404 },
     );
   }
 
-  const breakdown = calculateOnRoadPrice(inventory.priceInr, cityPrice);
+  let breakdown;
+  try {
+    breakdown = calculateOnRoadPrice(cityPrice, now);
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 422 });
+  }
   return NextResponse.json({
     cityId,
     variantId,
     effectiveFrom: cityPrice.effectiveFrom,
     effectiveUntil: cityPrice.effectiveUntil,
+    isAssumed: cityPrice.isAssumed,
     breakdown,
   });
 }

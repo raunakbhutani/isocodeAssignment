@@ -158,22 +158,26 @@ model CarVariant {
 }
 
 model VehicleInventory {
-  stockId    String          @id
-  type       VehicleType
-  variantId  String
-  year       Int
-  kilometres Int
-  priceInr   Int?
-  priceType  PriceType
-  status     VehicleStatus
-  isDemo     Boolean         @default(false)
-  showroomId String?
-  variant    CarVariant      @relation(fields: [variantId], references: [id], onDelete: Restrict)
-  showroom   Showroom?       @relation(fields: [showroomId], references: [id], onDelete: SetNull)
-  demoSlots  TestDriveSlot[]
-  leads      Lead[]
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  stockId           String          @id
+  type              VehicleType
+  variantId         String
+  year              Int
+  kilometres        Int
+  priceInr          Int?
+  priceType         PriceType
+  status            VehicleStatus
+  isDemo            Boolean         @default(false)
+  previousOwners    Int?
+  inspectionReport  String?
+  detailsAreAssumed Boolean         @default(false)
+  showroomId        String?
+  variant           CarVariant      @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  showroom          Showroom?       @relation(fields: [showroomId], references: [id], onDelete: SetNull)
+  images            VehicleImage[]
+  demoSlots         TestDriveSlot[]
+  leads             Lead[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@index([type, status])
   @@index([variantId, status])
@@ -197,10 +201,13 @@ model CityPrice {
   id                 String     @id @default(cuid())
   cityId             String
   variantId          String
+  exShowroomPriceInr Int
   roadTaxBasisPoints Int
   registrationFeeInr Int
   insuranceInr       Int
+  accessoriesInr     Int
   otherChargesInr    Int        @default(0)
+  isAssumed          Boolean    @default(false)
   effectiveFrom      DateTime
   effectiveUntil     DateTime?
   city               City       @relation(fields: [cityId], references: [id], onDelete: Cascade)
@@ -210,6 +217,20 @@ model CityPrice {
 
   @@unique([cityId, variantId, effectiveFrom])
   @@index([cityId, variantId, effectiveUntil])
+}
+
+model VehicleImage {
+  id             String           @id @default(cuid())
+  vehicleStockId String
+  url            String
+  altText        String
+  sortOrder      Int              @default(0)
+  isAssumed      Boolean          @default(false)
+  vehicle        VehicleInventory @relation(fields: [vehicleStockId], references: [stockId], onDelete: Cascade)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([vehicleStockId, sortOrder])
 }
 
 model Showroom {

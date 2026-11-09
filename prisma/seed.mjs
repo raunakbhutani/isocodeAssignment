@@ -58,7 +58,7 @@ async function seedCityAndShowrooms() {
   return { city, showrooms };
 }
 
-async function seedVehicle(record, { isDemo = false, showroomId = null } = {}) {
+async function seedVehicle(record, { isDemo = false, showroomId = null, isOfficial = false } = {}) {
   const model = await prisma.carModel.upsert({
     where: { brand_name: { brand: "Brand X", name: record.model } },
     update: {},
@@ -67,7 +67,7 @@ async function seedVehicle(record, { isDemo = false, showroomId = null } = {}) {
 
   const variant = await prisma.carVariant.upsert({
     where: { modelId_name: { modelId: model.id, name: record.variant } },
-    update: { fuel: record.fuel },
+    update: {},
     create: { modelId: model.id, name: record.variant, fuel: record.fuel },
   });
 
@@ -80,12 +80,45 @@ async function seedVehicle(record, { isDemo = false, showroomId = null } = {}) {
     priceType: record.priceType ?? (record.priceBasis === "LISTING" ? "LISTING_PRICE" : record.priceBasis),
     status: record.status,
     isDemo,
+    previousOwners: record.type === "USED" ? (record.stockId === "UC-1182" ? 1 : 2) : null,
+    inspectionReport: record.type === "USED"
+      ? `Assumed demo inspection summary for ${record.stockId}; replace with a verified inspection report.`
+      : null,
+    detailsAreAssumed: record.type === "USED",
     showroomId,
   };
   await prisma.vehicleInventory.upsert({
     where: { stockId: record.stockId },
-    update: data,
+    update: isOfficial ? {} : data,
     create: { stockId: record.stockId, ...data },
+  });
+  return { model, variant };
+}
+
+async function seedAssumedPricing(variant, city) {
+  const effectiveFrom = new Date("2026-01-01T00:00:00.000Z");
+  await prisma.cityPrice.upsert({
+    where: {
+      cityId_variantId_effectiveFrom: {
+        cityId: city.id,
+        variantId: variant.id,
+        effectiveFrom,
+      },
+    },
+    update: {},
+    create: {
+      cityId: city.id,
+      variantId: variant.id,
+      exShowroomPriceInr: 1245000,
+      roadTaxBasisPoints: 800,
+      registrationFeeInr: 10000,
+      insuranceInr: 25000,
+      accessoriesInr: 15000,
+      otherChargesInr: 0,
+      isAssumed: true,
+      effectiveFrom,
+      effectiveUntil: new Date("2026-12-31T23:59:59.999Z"),
+    },
   });
 }
 
@@ -246,7 +279,13 @@ async function seedAssumedLeads(city, showrooms, usersByEmail) {
 
 try {
   const { city, showrooms } = await seedCityAndShowrooms();
-  for (const record of officialInventory) await seedVehicle(record);
+  let newHVariant;
+  for (const record of officialInventory) {
+    const seeded = await seedVehicle(record, { isOfficial: true });
+    if (record.stockId === "NEW-H-02") newHVariant = seeded.variant;
+  }
+  if (!newHVariant) throw new Error("Official NEW-H-02 variant missing from seed data.");
+  await seedAssumedPricing(newHVariant, city);
   const usersByEmail = await seedAssumedAccounts(showrooms);
   await seedDemoCarsAndSlots(showrooms);
   await seedAssumedLeads(city, showrooms, usersByEmail);

@@ -6,8 +6,11 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 
-const officialStockIds = new Set(["NEW-H-02", "UC-1182", "UC-1190"]);
 const idSchema = z.string().min(1).max(64);
+const ownerCountSchema = z.preprocess(
+  (value) => value === "" || value == null ? null : value,
+  z.coerce.number().int().min(0).max(100).nullable(),
+);
 
 const vehicleSchema = z.object({
   stockId: z.string().trim().min(2).max(40),
@@ -19,11 +22,14 @@ const vehicleSchema = z.object({
   priceType: z.enum(["EX_SHOWROOM", "LISTING_PRICE"]),
   status: z.enum(["AVAILABLE", "BOOKED", "SOLD"]),
   showroomId: idSchema.optional().or(z.literal("")),
+  previousOwners: ownerCountSchema.optional(),
+  inspectionReport: z.string().trim().max(5000).optional().or(z.literal("")),
+  detailsAreAssumed: z.literal("true").optional(),
 });
 
 const vehicleUpdateSchema = vehicleSchema.omit({ stockId: true });
 
-export async function createCarModel(formData) {
+export async function createCarModel(_previousState, formData) {
   await requireRole("ADMIN");
   const parsed = z.object({
     brand: z.string().trim().min(2).max(80),
@@ -35,7 +41,7 @@ export async function createCarModel(formData) {
   return { success: "Model added." };
 }
 
-export async function createCarVariant(formData) {
+export async function createCarVariant(_previousState, formData) {
   await requireRole("ADMIN");
   const parsed = z.object({
     modelId: idSchema,
@@ -48,23 +54,58 @@ export async function createCarVariant(formData) {
   return { success: "Variant added." };
 }
 
-export async function createVehicle(formData) {
+export async function updateCarModel(_previousState, formData) {
+  await requireRole("ADMIN");
+  const parsed = z.object({
+    modelId: idSchema,
+    brand: z.string().trim().min(2).max(80),
+    name: z.string().trim().min(1).max(100),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Enter a valid brand and model name." };
+  const { modelId, ...data } = parsed.data;
+  const updated = await prisma.carModel.updateMany({ where: { id: modelId }, data });
+  if (updated.count !== 1) throw new Error("Car model not found.");
+  revalidatePath("/admin");
+  return { success: "Model updated." };
+}
+
+export async function updateCarVariant(_previousState, formData) {
+  await requireRole("ADMIN");
+  const parsed = z.object({
+    variantId: idSchema,
+    name: z.string().trim().min(1).max(100),
+    fuel: z.enum(["PETROL", "DIESEL", "ELECTRIC", "HYBRID", "OTHER"]),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Enter a valid variant name and fuel type." };
+  const { variantId, ...data } = parsed.data;
+  const updated = await prisma.carVariant.updateMany({ where: { id: variantId }, data });
+  if (updated.count !== 1) throw new Error("Car variant not found.");
+  revalidatePath("/admin");
+  revalidatePath("/new-cars");
+  revalidatePath("/used-cars");
+  return { success: "Variant updated." };
+}
+
+export async function createVehicle(_previousState, formData) {
   await requireRole("ADMIN");
   const parsed = vehicleSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Check the vehicle details and price basis." };
-  if (officialStockIds.has(parsed.data.stockId)) {
-    return { error: "The three official sample records cannot be replaced or edited." };
-  }
   if (
     (parsed.data.type === "NEW" && parsed.data.priceType !== "EX_SHOWROOM") ||
-    (parsed.data.type === "USED" && parsed.data.priceType !== "LISTING_PRICE")
+    (parsed.data.type === "USED" && parsed.data.priceType !== "LISTING_PRICE") ||
+    (parsed.data.stockId === "UC-1190" && parsed.data.status !== "BOOKED")
   ) {
-    return { error: "New vehicles require ex-showroom pricing; used vehicles require listing prices." };
+    return { error: parsed.data.stockId === "UC-1190"
+      ? "UC-1190 must remain booked."
+      : "New vehicles require ex-showroom pricing; used vehicles require listing prices." };
   }
 
   await prisma.vehicleInventory.create({
     data: {
       ...parsed.data,
+      previousOwners: parsed.data.type === "USED" ? parsed.data.previousOwners ?? null : null,
+      inspectionReport: parsed.data.type === "USED" ? parsed.data.inspectionReport || null : null,
+      detailsAreAssumed: parsed.data.type === "USED" && Boolean(parsed.data.detailsAreAssumed),
       showroomId: parsed.data.showroomId || null,
     },
     select: { stockId: true },
@@ -74,26 +115,32 @@ export async function createVehicle(formData) {
   return { success: "Vehicle added to inventory." };
 }
 
-export async function updateVehicle(formData) {
+export async function updateVehicle(_previousState, formData) {
   await requireRole("ADMIN");
   const parsed = z.object({
     stockId: z.string().trim().min(2).max(40),
     ...vehicleUpdateSchema.shape,
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Check the vehicle details and price basis." };
-  if (officialStockIds.has(parsed.data.stockId)) {
-    return { error: "The three official sample records cannot be replaced or edited." };
-  }
   if (
     (parsed.data.type === "NEW" && parsed.data.priceType !== "EX_SHOWROOM") ||
     (parsed.data.type === "USED" && parsed.data.priceType !== "LISTING_PRICE")
   ) {
     return { error: "New vehicles require ex-showroom pricing; used vehicles require listing prices." };
   }
+  if (parsed.data.stockId === "UC-1190" && parsed.data.status !== "BOOKED") {
+    return { error: "UC-1190 must remain booked." };
+  }
   const { stockId, ...data } = parsed.data;
   const updated = await prisma.vehicleInventory.updateMany({
     where: { stockId, isDemo: false },
-    data: { ...data, showroomId: data.showroomId || null },
+    data: {
+      ...data,
+      previousOwners: data.type === "USED" ? data.previousOwners ?? null : null,
+      inspectionReport: data.type === "USED" ? data.inspectionReport || null : null,
+      detailsAreAssumed: data.type === "USED" && Boolean(data.detailsAreAssumed),
+      showroomId: data.showroomId || null,
+    },
   });
   if (updated.count !== 1) throw new Error("Inventory record not found.");
   revalidatePath("/admin");
@@ -101,7 +148,7 @@ export async function updateVehicle(formData) {
   return { success: "Vehicle updated." };
 }
 
-export async function updateVehicleStatus(formData) {
+export async function updateVehicleStatus(_previousState, formData) {
   await requireRole("ADMIN");
   const parsed = z.object({
     stockId: idSchema,
@@ -111,8 +158,8 @@ export async function updateVehicleStatus(formData) {
     status: formData.get("status"),
   });
   if (!parsed.success) return { error: "Choose an inventory record and valid status." };
-  if (officialStockIds.has(parsed.data.stockId)) {
-    return { error: "The status of the three official sample records is fixed by the brief." };
+  if (parsed.data.stockId === "UC-1190" && parsed.data.status !== "BOOKED") {
+    return { error: "UC-1190 must remain booked." };
   }
   const changed = await prisma.vehicleInventory.updateMany({
     where: { stockId: parsed.data.stockId, isDemo: false },
@@ -124,21 +171,27 @@ export async function updateVehicleStatus(formData) {
   return { success: "Inventory status updated." };
 }
 
-export async function saveCityPrice(formData) {
+export async function saveCityPrice(_previousState, formData) {
   await requireRole("ADMIN");
   const parsed = z.object({
+    cityPriceId: idSchema.optional().or(z.literal("")),
     cityId: idSchema,
     variantId: idSchema,
+    exShowroomPriceInr: z.coerce.number().int().min(1).max(2_000_000_000),
     roadTaxBasisPoints: z.coerce.number().int().min(0).max(10000),
     registrationFeeInr: z.coerce.number().int().min(0).max(2_000_000_000),
     insuranceInr: z.coerce.number().int().min(0).max(2_000_000_000),
+    accessoriesInr: z.coerce.number().int().min(0).max(2_000_000_000),
     otherChargesInr: z.coerce.number().int().min(0).max(2_000_000_000),
     effectiveFrom: z.coerce.date(),
     effectiveUntil: z.union([z.coerce.date(), z.literal("")]).optional(),
+    isAssumed: z.literal("true").optional(),
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Enter valid non-negative pricing inputs and an effective date." };
-  const { effectiveUntil, ...data } = parsed.data;
-  const endDate = effectiveUntil || null;
+  const { effectiveUntil, cityPriceId, isAssumed, ...data } = parsed.data;
+  const endDate = effectiveUntil
+    ? new Date(new Date(effectiveUntil).setUTCHours(23, 59, 59, 999))
+    : null;
   if (endDate && endDate <= data.effectiveFrom) {
     return { error: "The end date must be later than the start date." };
   }
@@ -148,21 +201,126 @@ export async function saveCityPrice(formData) {
     select: { id: true, effectiveFrom: true, effectiveUntil: true },
   });
   const overlaps = activePrices.some((price) => {
+    if (price.id === cityPriceId) return false;
     const existingEnd = price.effectiveUntil?.getTime() ?? Number.POSITIVE_INFINITY;
     const newEnd = endDate?.getTime() ?? Number.POSITIVE_INFINITY;
     return data.effectiveFrom.getTime() < existingEnd && newEnd > price.effectiveFrom.getTime();
   });
   if (overlaps) return { error: "Pricing periods for this city and variant cannot overlap." };
 
-  await prisma.cityPrice.create({
-    data: { ...data, effectiveUntil: endDate },
-    select: { id: true },
-  });
+  if (cityPriceId) {
+    const updated = await prisma.cityPrice.updateMany({
+      where: { id: cityPriceId },
+      data: { ...data, effectiveUntil: endDate, isAssumed: Boolean(isAssumed) },
+    });
+    if (updated.count !== 1) throw new Error("City pricing record not found.");
+  } else {
+    await prisma.cityPrice.create({
+      data: { ...data, effectiveUntil: endDate, isAssumed: Boolean(isAssumed) },
+      select: { id: true },
+    });
+  }
   revalidatePath("/admin");
-  return { success: "City pricing inputs saved. The on-road total uses these recorded inputs." };
+  revalidatePath("/api/prices");
+  revalidatePath("/cars/NEW-H-02");
+  return { success: "City pricing inputs saved." };
 }
 
-export async function createShowroom(formData) {
+export async function createCity(_previousState, formData) {
+  await requireRole("ADMIN");
+  const parsed = z.object({
+    name: z.string().trim().min(2).max(100),
+    state: z.string().trim().min(2).max(100),
+    country: z.string().trim().min(2).max(100),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Enter a valid city, state, and country." };
+
+  try {
+    await prisma.city.create({ data: parsed.data, select: { id: true } });
+  } catch (error) {
+    if (error?.code === "P2002") return { error: "That city already exists." };
+    throw error;
+  }
+  revalidatePath("/admin");
+  return { success: "City added." };
+}
+
+export async function updateCity(_previousState, formData) {
+  await requireRole("ADMIN");
+  const parsed = z.object({
+    cityId: idSchema,
+    name: z.string().trim().min(2).max(100),
+    state: z.string().trim().min(2).max(100),
+    country: z.string().trim().min(2).max(100),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Enter a valid city, state, and country." };
+  const { cityId, ...data } = parsed.data;
+
+  try {
+    const updated = await prisma.city.updateMany({ where: { id: cityId }, data });
+    if (updated.count !== 1) throw new Error("City not found.");
+  } catch (error) {
+    if (error?.code === "P2002") return { error: "That city already exists." };
+    throw error;
+  }
+  revalidatePath("/admin");
+  return { success: "City updated." };
+}
+
+const vehicleImageUrlSchema = z.string().url().refine((value) => {
+  const url = new URL(value);
+  return url.protocol === "https:" && url.hostname === "images.unsplash.com";
+}, "Use a secure images.unsplash.com URL.");
+
+export async function saveVehicleImage(_previousState, formData) {
+  await requireRole("ADMIN");
+  const parsed = z.object({
+    imageId: idSchema.optional().or(z.literal("")),
+    vehicleStockId: idSchema,
+    url: vehicleImageUrlSchema,
+    altText: z.string().trim().min(5).max(200),
+    sortOrder: z.coerce.number().int().min(0).max(100),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Enter a valid placeholder image URL, description, and order." };
+
+  const { imageId, ...data } = parsed.data;
+  if (imageId) {
+    const updated = await prisma.vehicleImage.updateMany({
+      where: { id: imageId, vehicleStockId: data.vehicleStockId },
+      data: { ...data, isAssumed: true },
+    });
+    if (updated.count !== 1) throw new Error("Vehicle image not found.");
+  } else {
+    await prisma.vehicleImage.create({
+      data: { ...data, isAssumed: true },
+      select: { id: true },
+    });
+  }
+  revalidatePath("/admin");
+  revalidatePath(`/cars/${data.vehicleStockId}`);
+  return { success: "Vehicle image saved as assumed placeholder photography." };
+}
+
+export async function deleteVehicleImage(_previousState, formData) {
+  await requireRole("ADMIN");
+  const parsed = z.object({
+    imageId: idSchema,
+    vehicleStockId: idSchema,
+  }).safeParse({
+    imageId: formData.get("imageId"),
+    vehicleStockId: formData.get("vehicleStockId"),
+  });
+  if (!parsed.success) return { error: "Invalid image reference." };
+  const deleted = await prisma.vehicleImage.deleteMany({
+    where: { id: parsed.data.imageId, vehicleStockId: parsed.data.vehicleStockId },
+  });
+  if (deleted.count !== 1) throw new Error("Vehicle image not found.");
+  revalidatePath("/admin");
+  revalidatePath(`/cars/${parsed.data.vehicleStockId}`);
+  return { success: "Vehicle image removed." };
+}
+
+export async function createShowroom(_previousState, formData) {
   await requireRole("ADMIN");
   const parsed = z.object({
     name: z.string().trim().min(2).max(100),
@@ -184,7 +342,7 @@ export async function createShowroom(formData) {
   return { success: "Showroom added." };
 }
 
-export async function updateShowroom(formData) {
+export async function updateShowroom(_previousState, formData) {
   await requireRole("ADMIN");
   const parsed = z.object({
     showroomId: idSchema,
@@ -212,7 +370,7 @@ export async function updateShowroom(formData) {
   return { success: "Showroom updated." };
 }
 
-export async function createConsultant(formData) {
+export async function createConsultant(_previousState, formData) {
   await requireRole("ADMIN");
   const parsed = z.object({
     name: z.string().trim().min(2).max(100),
@@ -247,7 +405,7 @@ export async function createConsultant(formData) {
   return { success: "Consultant account created." };
 }
 
-export async function updateConsultant(formData) {
+export async function updateConsultant(_previousState, formData) {
   await requireRole("ADMIN");
   const parsed = z.object({
     consultantId: idSchema,

@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react";
 import VehicleCard from "./vehicle-card";
-import { DemoNotice } from "./ui";
+import { InfoNotice } from "./ui";
 import { Button } from "./ui/primitives";
 
 export default function ListingExplorer({ vehicles, used = false }) {
-  // Filters act only on the supplied preview data; there is no inventory API yet.
+  // Filters are local for instant feedback; the displayed inventory comes from PostgreSQL.
   const [model, setModel] = useState("All models");
   const [fuel, setFuel] = useState("All fuels");
   const [variant, setVariant] = useState("All variants");
@@ -36,9 +36,9 @@ export default function ListingExplorer({ vehicles, used = false }) {
 
   return (
     <>
-      <DemoNotice>
-        Listings use the three official sample records only. Filters run in this browser and do not query live stock.
-      </DemoNotice>
+      <InfoNotice title="Live inventory:">
+        Filters narrow the current database inventory in this browser.
+      </InfoNotice>
       <div className="my-7 grid gap-3 border border-[var(--line)] bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
         <Filter label="Model" value={model} onChange={setModel} options={models} />
         <Filter label="Fuel" value={fuel} onChange={setFuel} options={fuels} />
