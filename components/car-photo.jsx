@@ -9,6 +9,7 @@ export default function CarPhoto({ src, alt, className = "", sizes = "100vw", pr
       fill
       sizes={sizes}
       priority={priority}
+      loading={priority ? "eager" : "lazy"}
       className={`object-cover ${className}`}
     />
   );

@@ -3,59 +3,117 @@
 import { useMemo, useState } from "react";
 import VehicleCard from "./vehicle-card";
 import { DemoNotice } from "./ui";
+import { Button } from "./ui/primitives";
 
-export default function ListingExplorer({ vehicles }) {
-  // Local state filters the sample list in the browser; it does not call an API.
-  const [query, setQuery] = useState("");
-  const [fuelType, setFuelType] = useState("All fuel types");
+export default function ListingExplorer({ vehicles, used = false }) {
+  // Filters act only on the supplied preview data; there is no inventory API yet.
+  const [model, setModel] = useState("All models");
+  const [fuel, setFuel] = useState("All fuels");
+  const [variant, setVariant] = useState("All variants");
+  const [year, setYear] = useState("All years");
+  const [maximumPrice, setMaximumPrice] = useState("");
 
-  const fuelTypes = ["All fuel types", ...new Set(vehicles.map((vehicle) => vehicle.fuel))];
+  const models = ["All models", ...new Set(vehicles.map((vehicle) => vehicle.model))];
+  const fuels = ["All fuels", ...new Set(vehicles.map((vehicle) => vehicle.fuel))];
+  const variants = ["All variants", ...new Set(vehicles.map((vehicle) => vehicle.variant))];
+  const years = ["All years", ...new Set(vehicles.map((vehicle) => String(vehicle.year)))];
+  const hasFilters = model !== "All models" || fuel !== "All fuels" ||
+    variant !== "All variants" || year !== "All years" || maximumPrice !== "";
+
   const visibleVehicles = useMemo(
     () =>
       vehicles.filter((vehicle) => {
-        const matchesQuery = `${vehicle.make} ${vehicle.model} ${vehicle.variant} ${vehicle.stockId}`.toLowerCase().includes(query.toLowerCase());
-        const matchesFuel = fuelType === "All fuel types" || vehicle.fuel === fuelType;
-        return matchesQuery && matchesFuel;
+        return (
+          (model === "All models" || vehicle.model === model) &&
+          (fuel === "All fuels" || vehicle.fuel === fuel) &&
+          (used || variant === "All variants" || vehicle.variant === variant) &&
+          (!used || year === "All years" || String(vehicle.year) === year) &&
+          (!used || maximumPrice === "" || vehicle.priceInr <= Number(maximumPrice))
+        );
       }),
-    [fuelType, query, vehicles],
+    [fuel, maximumPrice, model, used, variant, vehicles, year],
   );
 
   return (
     <>
-      <DemoNotice />
-      <div className="my-8 grid gap-3 border border-[var(--line)] bg-white p-3 sm:grid-cols-[1fr_auto] sm:p-4">
-        <label className="sr-only" htmlFor="vehicle-search">Search vehicles</label>
-        <input
-          id="vehicle-search"
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search by model"
-          className="h-12 min-w-0 border border-[var(--line)] px-4 text-sm outline-none focus:border-[var(--accent)]"
-        />
-        <label className="sr-only" htmlFor="fuel-type">Filter by fuel type</label>
-        <select
-          id="fuel-type"
-          value={fuelType}
-          onChange={(event) => setFuelType(event.target.value)}
-          className="h-12 border border-[var(--line)] bg-white px-4 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]"
-        >
-          {fuelTypes.map((style) => <option key={style}>{style}</option>)}
-        </select>
+      <DemoNotice>
+        Listings use the three official sample records only. Filters run in this browser and do not query live stock.
+      </DemoNotice>
+      <div className="my-7 grid gap-3 border border-[var(--line)] bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Filter label="Model" value={model} onChange={setModel} options={models} />
+        <Filter label="Fuel" value={fuel} onChange={setFuel} options={fuels} />
+        {used ? (
+          <>
+            <Filter label="Year" value={year} onChange={setYear} options={years} />
+            <label className="flex flex-col gap-2 text-xs font-medium text-[var(--ink)]">
+              Maximum price (₹)
+              <input
+                type="number"
+                min="0"
+                value={maximumPrice}
+                onChange={(event) => setMaximumPrice(event.target.value)}
+                placeholder="No maximum"
+                className="h-11 w-full border border-[var(--line)] px-3 text-sm font-normal outline-none focus:border-[var(--accent)]"
+              />
+            </label>
+          </>
+        ) : (
+          <Filter label="Variant" value={variant} onChange={setVariant} options={variants} />
+        )}
       </div>
 
-      <p className="mb-5 text-xs text-[var(--muted)]">
-        Showing {visibleVehicles.length} {visibleVehicles.length === 1 ? "vehicle" : "vehicles"}
-      </p>
+      <div className="mb-5 flex items-center justify-between">
+        <p className="text-xs text-[var(--muted)]">
+          Showing {visibleVehicles.length} of {vehicles.length} vehicles
+        </p>
+        {hasFilters && (
+          <Button
+            type="button"
+            variant="ghost"
+            className="min-h-9 px-2 text-xs underline underline-offset-4"
+            onClick={() => {
+              setModel("All models");
+              setFuel("All fuels");
+              setVariant("All variants");
+              setYear("All years");
+              setMaximumPrice("");
+            }}
+          >
+            Clear filters
+          </Button>
+        )}
+      </div>
+
       {visibleVehicles.length ? (
         <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleVehicles.map((vehicle) => <VehicleCard key={vehicle.slug} vehicle={vehicle} />)}
+          {visibleVehicles.map((vehicle, index) => (
+            <VehicleCard key={vehicle.stockId} vehicle={vehicle} priority={index === 0} />
+          ))}
         </div>
       ) : (
-        <div className="border border-dashed border-[var(--line)] py-16 text-center text-sm text-[var(--muted)]">
-          No vehicles match those filters. Try a different search.
+        <div className="border border-dashed border-[var(--line)] bg-white px-5 py-16 text-center">
+          <h2 className="text-lg font-medium text-[var(--ink)]">No matching vehicles</h2>
+          <p className="mt-2 text-sm text-[var(--muted)]">Try changing or clearing the filters.</p>
         </div>
       )}
     </>
+  );
+}
+
+function Filter({ label, value, onChange, options }) {
+  const id = `filter-${label.toLowerCase()}`;
+
+  return (
+    <label htmlFor={id} className="flex flex-col gap-2 text-xs font-medium text-[var(--ink)]">
+      {label}
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full border border-[var(--line)] bg-white px-3 text-sm font-normal outline-none focus:border-[var(--accent)]"
+      >
+        {options.map((option) => <option key={option}>{option}</option>)}
+      </select>
+    </label>
   );
 }

@@ -24,7 +24,7 @@ export function ButtonLink({ href, children, variant = "dark", className = "" })
   const styles =
     variant === "light"
       ? "border border-white/40 text-white hover:bg-white hover:text-[var(--ink)]"
-      : variant === "outline"
+      : variant === "outline" || variant === "secondary"
         ? "border border-[var(--line)] text-[var(--ink)] hover:border-[var(--ink)]"
         : "bg-[var(--ink)] text-white hover:bg-[var(--accent)]";
 
@@ -40,12 +40,25 @@ export function ButtonLink({ href, children, variant = "dark", className = "" })
 }
 
 export function DemoNotice({
-  children = "Vehicle details reflect the supplied brief. Photos are illustrative, and this preview is not connected to a live inventory service.",
+  children = "Inventory figures come from the supplied brief. Photos are placeholders; this frontend is not connected to live inventory or booking services.",
 }) {
   return (
     <p className="rounded-sm border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
       <strong className="font-semibold">Demo data:</strong> {children}
     </p>
+  );
+}
+
+export function InfoNotice({ title, children, tone = "neutral" }) {
+  const colors = tone === "warning"
+    ? "border-amber-200 bg-amber-50 text-amber-950"
+    : "border-[var(--line)] bg-[#f7f7f5] text-[var(--muted)]";
+
+  return (
+    <div className={`border px-4 py-3 text-xs leading-5 ${colors}`}>
+      {title && <strong className="mr-1 font-semibold text-[var(--ink)]">{title}</strong>}
+      {children}
+    </div>
   );
 }
 

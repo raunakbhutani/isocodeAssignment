@@ -1,10 +1,12 @@
-# Company A Dealership Application
+# DriveHub — Company A Dealership Application
+
+DriveHub is an assumed working product name, not Company A’s official brand name. See [TDD.md](./TDD.md) for the frontend architecture and documented assumptions.
 
 A phased full-stack dealership application for Company A in Lucknow, Uttar Pradesh. The app is being built with Next.js App Router, JavaScript, Tailwind CSS, PostgreSQL, Prisma, Auth.js, Gemini, Vitest, and Vercel.
 
 ## Current implementation phase
 
-Phase 1 establishes the data model and official inventory seed. Customer, consultant, and admin workflows are not yet connected to the database. The previous visual prototype is not a source of official inventory, prices, or dealership information.
+The frontend includes the public showroom, inventory/detail pages, test-drive and enquiry form previews, consultant lead screens, and read-only admin tabs. These screens use the official sample inventory but are not connected to backend services.
 
 ## Local setup
 

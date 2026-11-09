@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Container, DemoNotice } from "./ui";
 
 const staffLinks = [
-  { href: "/consultant/leads", label: "Lead overview" },
-  { href: "/admin", label: "Admin workspace" },
+  { href: "/consultant/leads", label: "Consultant" },
+  { href: "/admin", label: "Admin" },
 ];
 
 export default function StaffLayout({ title, description, children }) {
@@ -13,7 +13,7 @@ export default function StaffLayout({ title, description, children }) {
         <div className="mb-8 flex flex-col gap-5 border-b border-[var(--line)] pb-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.19em] text-[var(--accent)]">
-              Company A · Staff workspace
+              DriveHub · Company A staff workspace
             </p>
             <h1 className="mt-3 text-3xl font-medium tracking-[-0.04em] text-[var(--ink)] sm:text-4xl">{title}</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">{description}</p>
@@ -27,7 +27,7 @@ export default function StaffLayout({ title, description, children }) {
           </nav>
         </div>
         <div className="mb-6">
-          <DemoNotice>Lead and staff records are fictional demo data. Inventory values shown here match the supplied brief; changes are not saved.</DemoNotice>
+          <DemoNotice>Lead and staff records are fictional demo data. Inventory values shown here match the supplied brief; no changes are saved.</DemoNotice>
         </div>
         {children}
       </Container>

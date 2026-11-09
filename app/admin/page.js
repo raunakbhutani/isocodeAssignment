@@ -1,17 +1,17 @@
 import StaffLayout from "../../components/staff-layout";
 import AdminTabs from "../../components/admin-tabs";
-import { mockPricing, vehicles } from "../../lib/mock-data";
+import { consultants, showrooms, vehicles } from "../../lib/mock-data";
 
-export const metadata = { title: "Admin workspace | Company A" };
+export const metadata = { title: "Admin dashboard | DriveHub" };
 
 export default function AdminPage() {
   return (
-    <StaffLayout title="Inventory & pricing" description="Review sample vehicle availability and list prices in one place.">
+    <StaffLayout title="Admin dashboard" description="Review the supplied inventory and planned model, pricing, showroom, and consultant management areas.">
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         {[
           ["Official stock records", vehicles.length, "Supplied in the project brief"],
           ["Available records", vehicles.filter((vehicle) => vehicle.status === "AVAILABLE").length, "Status from supplied brief"],
-          ["Booked records", vehicles.filter((vehicle) => vehicle.status === "BOOKED").length, "Not available for booking"],
+          ["Booked records", vehicles.filter((vehicle) => vehicle.status === "BOOKED").length, "Not available for test-drive"],
         ].map(([label, value, note]) => (
           <div key={label} className="border border-[var(--line)] bg-white p-5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">{label}</p>
@@ -20,7 +20,7 @@ export default function AdminPage() {
           </div>
         ))}
       </div>
-      <AdminTabs vehicles={vehicles} pricing={mockPricing} />
+      <AdminTabs showrooms={showrooms} consultants={consultants} />
     </StaffLayout>
   );
 }

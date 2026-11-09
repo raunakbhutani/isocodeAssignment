@@ -5,8 +5,8 @@ import { useState } from "react";
 
 const links = [
   { href: "/new-cars", label: "New cars" },
-  { href: "/used-cars", label: "Pre-owned" },
-  { href: "/book-test-drive", label: "Book a test drive" },
+  { href: "/used-cars", label: "Used cars" },
+  { href: "/#showrooms", label: "Our locations" },
 ];
 
 export default function SiteHeader() {
@@ -19,14 +19,15 @@ export default function SiteHeader() {
         <Link
           href="/"
           className="flex items-center gap-3"
-          aria-label="Company A home"
+          aria-label="DriveHub home"
           onClick={() => setMenuOpen(false)}
         >
           <span className="flex h-9 w-9 items-center justify-center bg-[var(--accent)] text-xs font-bold tracking-widest text-white">
-            A
+            D
           </span>
-          <span className="text-sm font-semibold uppercase tracking-[0.19em] text-[var(--ink)]">
-            Company A
+          <span>
+            <span className="block text-sm font-semibold uppercase tracking-[0.19em] text-[var(--ink)]">DriveHub</span>
+            <span className="mt-0.5 block text-[9px] uppercase tracking-[0.14em] text-[var(--muted)]">Company A · Brand X</span>
           </span>
         </Link>
 
@@ -39,6 +40,7 @@ export default function SiteHeader() {
         </nav>
 
         <div className="hidden items-center gap-5 md:flex">
+          <Link href="/book-test-drive" className="nav-link text-xs">Test drive</Link>
           <Link href="/consultant/leads" className="nav-link text-xs">
             Consultant
           </Link>
@@ -49,7 +51,7 @@ export default function SiteHeader() {
             href="/new-cars"
             className="inline-flex h-11 items-center justify-center bg-[var(--ink)] px-5 text-xs font-medium text-white transition-colors hover:bg-[var(--accent)]"
           >
-            Explore cars
+            Browse stock
           </Link>
         </div>
 
@@ -67,7 +69,7 @@ export default function SiteHeader() {
       {menuOpen && (
         <nav className="absolute left-0 right-0 top-full border-b border-[var(--line)] bg-white px-5 py-5 shadow-lg md:hidden" aria-label="Mobile navigation">
           <div className="mx-auto flex max-w-[1320px] flex-col">
-            {[...links, { href: "/consultant/leads", label: "Consultant workspace" }, { href: "/admin", label: "Admin workspace" }].map(
+            {[...links, { href: "/book-test-drive", label: "Book a test drive" }, { href: "/consultant/leads", label: "Consultant dashboard" }, { href: "/admin", label: "Admin dashboard" }].map(
               (link) => (
                 <Link
                   key={link.href}
@@ -85,4 +87,3 @@ export default function SiteHeader() {
     </header>
   );
 }
-
