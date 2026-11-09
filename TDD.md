@@ -1,12 +1,12 @@
-# DriveHub Frontend Technical Design
+# DriveHub Technical Design
 
 ## Product name
 
 **DriveHub** is an assumed working name for the internship application. It is not the client's official brand name. The client is Company A, an authorized Brand X dealer in Lucknow, Uttar Pradesh. The Company A name is retained for dealership context; Brand X remains the supplied manufacturer placeholder.
 
-## Frontend scope
+## Current implementation scope
 
-This phase builds the Next.js App Router screens and reusable presentation components. It does not connect forms, lead assignment, inventory edits, city pricing, test-drive slots, authentication, or Gemini to backend services. Demo interactions are local-only and labeled as such.
+The Next.js App Router screens now use a PostgreSQL/Prisma backend for buyer registration, enquiry/test-drive requests, consultant lead access, consent records, and draft/status actions. The admin screen remains a read-only frontend preview while admin server actions are available. Gemini generation and message sending are not connected.
 
 ## Route map
 
@@ -32,9 +32,10 @@ This phase builds the Next.js App Router screens and reusable presentation compo
 - **`ListingExplorer`** — Local browser-only filtering and empty state. Filters do not query or change inventory.
 - **`CarGallery`** — Local selection between illustrative photos; no real per-vehicle gallery was supplied.
 - **`CityPricePanel`** — Shows the supplied new-car ex-showroom price and missing on-road cost inputs. It intentionally does not calculate an unsupported total.
-- **`TestDriveForm` / `EnquiryForm`** — Responsive form layout. Submit actions are disabled because no server action or API exists yet. Showrooms and time choices are clearly marked assumptions.
-- **`LeadTable`** — Local search/status filtering over fictional demo leads; assignment and response timer are not live.
-- **`AiLeadPanel`** — Illustrative summary/reply; textarea edits and approval badge remain local to the browser and do not call Gemini, persist, or send messages.
+- **`TestDriveForm`** — Loads active showrooms, available demo vehicles, and future open slots from PostgreSQL; server validation and a transaction reserve a slot.
+- **`EnquiryForm`** — Captures buyer details and explicit contact consent, then sends a validated server action that creates and assigns a lead.
+- **`LeadTable`** — Search/status filtering over records available to the signed-in consultant/admin.
+- **`AiLeadPanel`** — Persists consultant-edited summary/reply drafts and approval timestamps. Gemini is not connected and approval does not send anything.
 - **`AdminTabs`** — Read-only views of supplied inventory and model/variant relationships plus explicit missing-data states for prices, showroom details, and staff.
 - **`app/loading.js`, `app/error.js`, `app/not-found.js`** — Shared loading, retryable error, and missing-vehicle experiences.
 
@@ -51,11 +52,74 @@ UC-1190 is not offered in the test-drive vehicle selector. Prices are formatted 
 ## Explicit assumptions and unavailable inputs
 
 - The only known city is Lucknow. No tax/registration/insurance schedules were supplied, so the new-car on-road estimate is intentionally unavailable.
-- Three showroom placeholders mirror the client-provided count only; their names and addresses are unconfirmed.
-- Demo time slots are layout assumptions, not availability. The form cannot create a booking.
-- Lead records are fictional and use `.invalid` email addresses. They do not represent real buyers or staff.
-- AI summary and reply text are illustrative static examples, not Gemini output.
-- Admin tabs are navigable but read-only. Staff, showroom addresses, city rates, and edit/save functions require confirmed data and backend authorization.
+- Three showroom names, three consultant accounts, two buyer accounts, one admin, two demo vehicles, and sample time slots are assumed development data. They are marked in seed data and use reserved `.invalid` email addresses.
+- Two illustrative leads are also seeded for consultant inbox testing. Their names/emails are fictional, and the zero-only phone is a non-contactable placeholder.
+- The seed requires a private `DEMO_ACCOUNT_PASSWORD` environment value, stores only bcrypt hashes, and uses the same password for these development accounts. Never reuse that password in production.
+- The live booking form only displays future, open slot records. The seeded demo slots are assumptions, not client-confirmed availability.
+- Admin tabs are navigable but read-only; corresponding protected server actions are not yet wired to edit controls.
+- Migration/seed execution requires a configured PostgreSQL database. The current development environment has no `DATABASE_URL`, so migration and persisted seed verification remain outstanding.
+
+## Database models and relationships
+
+The Prisma schema uses one table per main business concept:
+
+- **User** stores credentials, active state, and the BUYER/CONSULTANT/ADMIN role. Auth.js Account/Session/VerificationToken models are present for adapter compatibility; the Credentials provider uses JWT sessions.
+- **CarModel** belongs to a manufacturer name and has many CarVariants.
+- **CarVariant** belongs to a CarModel and has a fuel type. It can be referenced by many VehicleInventory rows, CityPrices, and Leads.
+- **VehicleInventory** is the stock-level record keyed by stock ID. It links to one variant and optionally one showroom. `priceType` distinguishes `EX_SHOWROOM` from `LISTING_PRICE`; demo cars may have no sales price. Official seed records are not demos.
+- **City** owns showrooms, city-price records, and leads. City name/state/country is unique.
+- **CityPrice** links one city and one variant to road-tax basis points and registration/insurance/other charges for a date range. No values are seeded until the client supplies them.
+- **Showroom** belongs to a city and has consultant, demo inventory, test-drive slot, and lead relations. Seeded showroom names are explicitly marked assumed.
+- **Consultant** is a one-to-one profile for a CONSULTANT User and belongs to a showroom. Leads point to the profile, not to an arbitrary user ID.
+- **Lead** stores enquiry/contact data, optional buyer, interested vehicle/variant, city/showroom, current consultant assignment, status, and timestamps.
+- **LeadAssignment** is assignment history. A lead has many assignment records, each for a consultant and optionally the actor who made the assignment.
+- **TestDriveBooking** belongs to a lead and a unique TestDriveSlot; slots point to an assumed demo VehicleInventory row and a showroom. The database enforces at most one booking per slot.
+- **ConsentRecord** stores dated granted/revoked choices for a user or lead. Contact and optional marketing consent are separate.
+- **LeadActivity**, **LeadAiDraft**, and **TestDriveSlot** support status/audit history, consultant-reviewed AI drafts, and time-slot availability.
+
+## Authentication and authorization
+
+- Auth.js Credentials checks normalized email and bcrypt password hashes. Password hashes use bcrypt cost 12; plaintext passwords are never stored.
+- A new public account can only receive the BUYER role. Admin-only actions create CONSULTANT users and profiles. Role values from browser forms are never trusted.
+- Sessions use JWTs, but authorization helpers re-read the user from the database so a deactivated account or changed role does not keep its old access.
+- Consultant pages/actions/API handlers require the CONSULTANT or ADMIN role. Lead reads/mutations additionally scope the lead to the current consultant profile. Reassignment is allowed to admins, or to the assigned consultant within the same showroom.
+- Admin actions require ADMIN server-side. The three official sample stock records are protected from admin create/status mutations to preserve the brief.
+- Every Server Action validates untrusted form data. Protected Route Handlers return 401 for unauthenticated callers and 403 for wrong roles.
+
+### Important authentication functions
+
+- **`authorize()` in `auth.js`** — Auth.js calls this for email/password sign-in. It validates the submitted values, finds the normalized email, checks the bcrypt hash, rejects inactive users, and returns only safe identity/role fields.
+- **`jwt` and `session` callbacks in `auth.js`** — Copy the user ID and role into the encrypted Auth.js JWT/session so the app can identify the signed-in user. Data mutations still look the user up in PostgreSQL before granting access.
+- **`getCurrentUser()` in `lib/authz.js`** — Reads the Auth.js session and then reloads the active user and current role from the database.
+- **`requireRole()` in `lib/authz.js`** — Stops a server action unless a signed-in active user has one of the allowed roles.
+- **`requirePageRole()` in `lib/authz.js`** — Applies the same current-role check to a page and redirects unauthenticated/incorrect-role visitors.
+- **`requireLeadAccess()` in `lib/authz.js`** — Checks that a consultant is currently assigned to the requested lead; admins may access any lead.
+- **`registerBuyer()` in `app/actions/auth.js`** — Validates and hashes a new password, and always creates a BUYER so a public form cannot create an admin or consultant.
+
+## Backend routes and actions
+
+| Surface | Responsibility |
+|---|---|
+| `GET /api/vehicles` | Return public non-demo inventory and only the fields needed for display |
+| `GET /api/prices?cityId=...&variantId=...` | Return an itemized on-road calculation only when ex-showroom and current city pricing inputs exist |
+| `GET /api/consultant/leads` | Return leads assigned to the signed-in consultant, or all leads for admin |
+| `GET /api/consultant/leads/:id` | Return details only when assigned to caller or caller is admin |
+| Auth.js `/api/auth/[...nextauth]` | Credentials sign-in/out/session endpoints |
+| Buyer registration action | Validate name/email/password, hash password, create only a BUYER |
+| Enquiry action | Validate details and mandatory contact consent; create lead, consent record, assignment history |
+| Test-drive action | Validate the slot, atomically reserve it, and create its lead/booking/consent records |
+| Consent action | Append the buyer's optional marketing preference without conflating it with service contact consent |
+| Consultant actions | Read assigned leads; update status/first-response time; save/approve drafts; permitted reassignment |
+| Admin actions | Create inventory, protect official record status, configure city pricing, create/update showrooms and consultants |
+
+## Important business logic
+
+- **Lead assignment:** At submission, active consultants are queried (restricted to the requested showroom when provided) and the consultant with the fewest existing leads is selected. Assignment is immediate and recorded in LeadAssignment. This least-loaded starter policy has no capacity limits, working hours, alert delivery, or assignment-failure queue.
+- **Five-minute target:** New lead assignment is immediate, but no email/SMS/push notifier is configured. The brief's five-minute target is not an implemented notification SLA.
+- **Test-drive safety:** A request must reference an open, future slot at the selected active showroom and an `isDemo` vehicle whose status is AVAILABLE. The slot is reserved with a conditional update and a unique booking constraint inside one transaction. `UC-1190` is BOOKED, not a demo vehicle, and cannot be booked.
+- **Price separation:** New inventory stores an ex-showroom price; used inventory stores a listing price. No on-road value is implied by either. Planned on-road formula is `ex-showroom + round(ex-showroom * roadTaxBasisPoints / 10,000) + registration + insurance + other charges`. Actual rates and effective date must be client-approved first.
+- **AI:** Gemini is not yet integrated. Draft records can be edited/approved by authorized consultants, and approval does not send a reply.
+- **Consent:** Contact permission is required for an enquiry/test-drive request. The optional marketing choice (including a refusal) is separately recorded; buyer settings append future preference changes.
 
 ## Styling and accessibility
 

@@ -1,13 +1,51 @@
 import { Suspense } from "react";
 import TestDriveForm from "../../components/test-drive-form";
 import { Container, Eyebrow } from "../../components/ui";
+import { connection } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export const metadata = { title: "Test-drive request | DriveHub" };
 
 async function BookingForm({ searchParams }) {
+  await connection();
   const query = await searchParams;
   const vehicleStockId = typeof query?.vehicle === "string" ? query.vehicle : "";
-  return <TestDriveForm vehicleStockId={vehicleStockId} />;
+  const slots = await prisma.testDriveSlot.findMany({
+    where: {
+      isOpen: true,
+      startsAt: { gt: new Date() },
+      showroom: { isActive: true },
+      demoVehicle: { isDemo: true, status: "AVAILABLE" },
+    },
+    select: {
+      id: true,
+      startsAt: true,
+      showroom: { select: { id: true, name: true } },
+      demoVehicle: {
+        select: {
+          stockId: true,
+          variant: {
+            select: {
+              name: true,
+              model: { select: { name: true } },
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ startsAt: "asc" }, { id: "asc" }],
+  });
+  const slotOptions = slots.map((slot) => ({
+    id: slot.id,
+    startsAt: slot.startsAt.toISOString(),
+    showroom: slot.showroom,
+    demoVehicle: {
+      stockId: slot.demoVehicle.stockId,
+      model: slot.demoVehicle.variant.model.name,
+      variant: slot.demoVehicle.variant.name,
+    },
+  }));
+  return <TestDriveForm slots={slotOptions} vehicleStockId={vehicleStockId} />;
 }
 
 export default function TestDrivePage({ searchParams }) {
@@ -17,7 +55,7 @@ export default function TestDrivePage({ searchParams }) {
         <div>
           <Eyebrow>Test-drive request</Eyebrow>
           <h1 className="mt-4 text-4xl font-medium leading-tight tracking-[-0.05em] text-[var(--ink)] sm:text-6xl">Get to know the car from the driver’s seat.</h1>
-          <p className="mt-5 text-sm leading-7 text-[var(--muted)]">Choose your preferred showroom, available sample vehicle, date, and time. The page shows the intended flow; booking services are not connected.</p>
+          <p className="mt-5 text-sm leading-7 text-[var(--muted)]">Choose an active showroom, demo car, and an open date and time from the database.</p>
           <div className="mt-8 border-l-2 border-[var(--accent)] pl-5">
             <p className="text-sm font-medium text-[var(--ink)]">What happens next?</p>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">A Company A consultant will follow up to confirm availability and answer your questions.</p>

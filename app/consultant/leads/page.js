@@ -1,19 +1,42 @@
 import StaffLayout from "../../../components/staff-layout";
 import LeadTable from "../../../components/lead-table";
-import { leads } from "../../../lib/mock-data";
 import { InfoNotice } from "../../../components/ui";
+import { requirePageRole } from "@/lib/authz";
+import { getAssignedLeads } from "@/app/actions/consultant";
 
 export const metadata = { title: "Consultant dashboard | DriveHub" };
 
-export default function ConsultantLeadsPage() {
-  const newLeads = leads.filter((lead) => lead.status === "New").length;
-  const activeLeads = leads.length;
+const statusLabels = {
+  NEW: "New",
+  CONTACTED: "Contacted",
+  QUALIFIED: "Qualified",
+  TEST_DRIVE_SCHEDULED: "Test drive scheduled",
+  WON: "Won",
+  LOST: "Lost",
+};
+
+export default async function ConsultantLeadsPage() {
+  await requirePageRole("CONSULTANT", "ADMIN");
+  const records = await getAssignedLeads();
+  const leads = records.map((lead) => {
+    return {
+      id: lead.id,
+      name: lead.customerName,
+      vehicleStockId: lead.vehicle?.stockId ?? "No vehicle selected",
+      source: lead.source.replaceAll("_", " "),
+      status: statusLabels[lead.status],
+      assignedTo: lead.assignedConsultant?.user.name ?? "Unassigned",
+      receivedAt: lead.receivedAt.toISOString(),
+    };
+  });
+  const newLeads = records.filter((lead) => lead.status === "NEW").length;
+  const activeLeads = records.length;
 
   return (
     <StaffLayout title="Consultant dashboard" description="Lead overview, inbox, status, and response-time context for the consultant team.">
       <div className="mb-6">
         <InfoNotice title="Response target from the brief:">
-          New website leads should reach a consultant within five minutes. These demo records have no live receipt time or assignment.
+          New website leads are assigned immediately to an active consultant. The five-minute target is a business response goal, not an automated notification.
         </InfoNotice>
       </div>
       <div className="mb-6 grid gap-4 sm:grid-cols-3">

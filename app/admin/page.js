@@ -1,10 +1,12 @@
 import StaffLayout from "../../components/staff-layout";
 import AdminTabs from "../../components/admin-tabs";
 import { consultants, showrooms, vehicles } from "../../lib/mock-data";
+import { requirePageRole } from "@/lib/authz";
 
 export const metadata = { title: "Admin dashboard | DriveHub" };
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  await requirePageRole("ADMIN");
   return (
     <StaffLayout title="Admin dashboard" description="Review the supplied inventory and planned model, pricing, showroom, and consultant management areas.">
       <div className="mb-6 grid gap-4 sm:grid-cols-3">

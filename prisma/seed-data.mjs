@@ -10,6 +10,7 @@ export const officialInventory = [
     kilometres: 0,
     priceInr: 1245000,
     priceBasis: "EX_SHOWROOM",
+    priceType: "EX_SHOWROOM",
     status: "AVAILABLE",
   },
   {
@@ -22,6 +23,7 @@ export const officialInventory = [
     kilometres: 41200,
     priceInr: 845000,
     priceBasis: "LISTING",
+    priceType: "LISTING_PRICE",
     status: "AVAILABLE",
   },
   {
@@ -34,6 +36,7 @@ export const officialInventory = [
     kilometres: 58600,
     priceInr: 512000,
     priceBasis: "LISTING",
+    priceType: "LISTING_PRICE",
     status: "BOOKED",
   },
 ];

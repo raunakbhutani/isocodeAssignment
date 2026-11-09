@@ -40,6 +40,7 @@ export default function SiteHeader() {
         </nav>
 
         <div className="hidden items-center gap-5 md:flex">
+          <Link href="/login" className="nav-link text-xs">Sign in</Link>
           <Link href="/book-test-drive" className="nav-link text-xs">Test drive</Link>
           <Link href="/consultant/leads" className="nav-link text-xs">
             Consultant
@@ -69,7 +70,7 @@ export default function SiteHeader() {
       {menuOpen && (
         <nav className="absolute left-0 right-0 top-full border-b border-[var(--line)] bg-white px-5 py-5 shadow-lg md:hidden" aria-label="Mobile navigation">
           <div className="mx-auto flex max-w-[1320px] flex-col">
-            {[...links, { href: "/book-test-drive", label: "Book a test drive" }, { href: "/consultant/leads", label: "Consultant dashboard" }, { href: "/admin", label: "Admin dashboard" }].map(
+            {[...links, { href: "/book-test-drive", label: "Book a test drive" }, { href: "/login", label: "Sign in" }, { href: "/consultant/leads", label: "Consultant dashboard" }, { href: "/admin", label: "Admin dashboard" }].map(
               (link) => (
                 <Link
                   key={link.href}

@@ -13,12 +13,6 @@ enum UserRole {
   ADMIN
 }
 
-enum LocationType {
-  SHOWROOM
-  SERVICE_WORKSHOP
-  USED_CAR_YARD
-}
-
 enum FuelType {
   PETROL
   DIESEL
@@ -38,9 +32,9 @@ enum VehicleStatus {
   SOLD
 }
 
-enum PriceBasis {
+enum PriceType {
   EX_SHOWROOM
-  LISTING
+  LISTING_PRICE
 }
 
 enum LeadStatus {
@@ -75,22 +69,31 @@ enum TestDriveBookingStatus {
   COMPLETED
 }
 
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  role          UserRole  @default(BUYER)
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+enum ConsentType {
+  CONTACT
+  MARKETING
+}
 
-  accounts       Account[]
-  sessions       Session[]
-  assignedLeads  Lead[]   @relation("LeadAssignee")
-  createdLeads   Lead[]   @relation("BuyerLead")
-  leadActivities LeadActivity[]
+model User {
+  id                String             @id @default(cuid())
+  name              String
+  email             String             @unique
+  passwordHash      String?
+  emailVerified     DateTime?
+  image             String?
+  role              UserRole           @default(BUYER)
+  isActive          Boolean            @default(true)
+  isDemo            Boolean            @default(false)
+  accounts          Account[]
+  sessions          Session[]
+  consultant        Consultant?
+  buyerLeads        Lead[]             @relation("BuyerLead")
+  leadActivities    LeadActivity[]     @relation("LeadActivityActor")
+  madeAssignments   LeadAssignment[]   @relation("AssignmentActor")
+  consentRecords    ConsentRecord[]
+  testDriveBookings TestDriveBooking[] @relation("BookingBuyer")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model Account {
@@ -105,8 +108,7 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([provider, providerAccountId])
 }
@@ -115,8 +117,7 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([sessionToken])
 }
@@ -129,164 +130,217 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model City {
-  id           String              @id @default(cuid())
-  name         String
-  state        String
-  country      String              @default("India")
-  locations    Location[]
-  pricingRules CityPricingRule[]
-  leads        Lead[]
-
-  @@unique([name, state, country])
-}
-
-model Location {
-  id         String       @id @default(cuid())
-  name       String
-  type       LocationType
-  address    String?
-  cityId     String
-  isActive   Boolean      @default(true)
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-
-  city          City                 @relation(fields: [cityId], references: [id])
-  vehicles      VehicleStock[]
-  testDriveSlots TestDriveSlot[]
-  leads         Lead[]
-
-  @@index([cityId, type, isActive])
-}
-
-model VehicleModel {
-  id        String    @id @default(cuid())
+model CarModel {
+  id        String       @id @default(cuid())
   brand     String
   name      String
-  variants  Variant[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  variants  CarVariant[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   @@unique([brand, name])
 }
 
-model Variant {
-  id           String        @id @default(cuid())
-  modelId      String
-  name         String
-  fuel         FuelType
-  model        VehicleModel  @relation(fields: [modelId], references: [id])
-  stock        VehicleStock[]
-  pricingRules CityPricingRule[]
-  leads        Lead[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+model CarVariant {
+  id         String             @id @default(cuid())
+  modelId    String
+  name       String
+  fuel       FuelType
+  model      CarModel           @relation(fields: [modelId], references: [id], onDelete: Restrict)
+  inventory  VehicleInventory[]
+  cityPrices CityPrice[]
+  leads      Lead[]
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
 
   @@unique([modelId, name])
+  @@index([modelId, fuel])
 }
 
-model VehicleStock {
-  stockId       String        @id
-  type          VehicleType
-  variantId     String
-  year          Int
-  kilometres    Int
-  priceInr      Int
-  priceBasis    PriceBasis
-  status        VehicleStatus
-  locationId    String?
-  variant       Variant       @relation(fields: [variantId], references: [id])
-  location      Location?     @relation(fields: [locationId], references: [id])
-  demoSlots     TestDriveSlot[]
-  leads         Lead[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+model VehicleInventory {
+  stockId    String          @id
+  type       VehicleType
+  variantId  String
+  year       Int
+  kilometres Int
+  priceInr   Int?
+  priceType  PriceType
+  status     VehicleStatus
+  isDemo     Boolean         @default(false)
+  showroomId String?
+  variant    CarVariant      @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  showroom   Showroom?       @relation(fields: [showroomId], references: [id], onDelete: SetNull)
+  demoSlots  TestDriveSlot[]
+  leads      Lead[]
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
 
   @@index([type, status])
   @@index([variantId, status])
 }
 
-model CityPricingRule {
-  id                          String   @id @default(cuid())
-  cityId                      String
-  variantId                   String
-  roadTaxBasisPoints           Int
-  registrationFeeInr           Int
-  insuranceInr                 Int
-  otherChargesInr              Int      @default(0)
-  effectiveFrom                DateTime
-  effectiveUntil               DateTime?
-  city                          City     @relation(fields: [cityId], references: [id])
-  variant                       Variant  @relation(fields: [variantId], references: [id])
-  createdAt                     DateTime @default(now())
-  updatedAt                     DateTime @updatedAt
+model City {
+  id        String      @id @default(cuid())
+  name      String
+  state     String
+  country   String      @default("India")
+  showrooms Showroom[]
+  prices    CityPrice[]
+  leads     Lead[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([name, state, country])
+}
+
+model CityPrice {
+  id                 String     @id @default(cuid())
+  cityId             String
+  variantId          String
+  roadTaxBasisPoints Int
+  registrationFeeInr Int
+  insuranceInr       Int
+  otherChargesInr    Int        @default(0)
+  effectiveFrom      DateTime
+  effectiveUntil     DateTime?
+  city               City       @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  variant            CarVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
   @@unique([cityId, variantId, effectiveFrom])
   @@index([cityId, variantId, effectiveUntil])
 }
 
-model TestDriveSlot {
-  id                  String    @id @default(cuid())
-  locationId          String
-  demoVehicleStockId  String
-  startsAt            DateTime
-  endsAt              DateTime
-  isOpen              Boolean   @default(true)
-  location            Location  @relation(fields: [locationId], references: [id])
-  demoVehicle         VehicleStock @relation(fields: [demoVehicleStockId], references: [stockId])
-  booking             TestDriveBooking?
-  createdAt           DateTime  @default(now())
+model Showroom {
+  id         String             @id @default(cuid())
+  name       String
+  address    String?
+  cityId     String
+  isAssumed  Boolean            @default(false)
+  isActive   Boolean            @default(true)
+  city       City               @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  consultant Consultant[]
+  inventory  VehicleInventory[]
+  slots      TestDriveSlot[]
+  leads      Lead[]
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
 
-  @@unique([demoVehicleStockId, startsAt])
-  @@index([locationId, startsAt, isOpen])
+  @@unique([name, cityId])
+  @@index([cityId, isActive])
 }
 
-model TestDriveBooking {
-  id          String                  @id @default(cuid())
-  leadId      String
-  slotId      String                  @unique
-  status      TestDriveBookingStatus  @default(REQUESTED)
-  lead        Lead                    @relation(fields: [leadId], references: [id])
-  slot        TestDriveSlot           @relation(fields: [slotId], references: [id])
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
+model Consultant {
+  id          String           @id @default(cuid())
+  userId      String           @unique
+  showroomId  String
+  isActive    Boolean          @default(true)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  showroom    Showroom         @relation(fields: [showroomId], references: [id], onDelete: Restrict)
+  leads       Lead[]           @relation("LeadAssignee")
+  assignments LeadAssignment[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  @@index([leadId, status])
+  @@index([showroomId, isActive])
 }
 
 model Lead {
-  id                       String      @id @default(cuid())
-  reference                String      @unique
-  buyerUserId              String?
-  customerName             String
-  email                    String?
-  phone                    String
-  source                   LeadSource
-  status                   LeadStatus  @default(NEW)
-  variantId                String?
-  vehicleStockId           String?
-  cityId                   String?
-  requestedLocationId      String?
-  assignedConsultantId     String?
-  receivedAt               DateTime    @default(now())
-  assignedAt               DateTime?
-  firstRespondedAt         DateTime?
-  buyerConsentAt           DateTime?
-  buyer                    User?       @relation("BuyerLead", fields: [buyerUserId], references: [id])
-  assignedConsultant      User?        @relation("LeadAssignee", fields: [assignedConsultantId], references: [id])
-  variant                  Variant?    @relation(fields: [variantId], references: [id])
-  vehicleStock             VehicleStock? @relation(fields: [vehicleStockId], references: [stockId])
-  city                     City?       @relation(fields: [cityId], references: [id])
-  requestedLocation        Location?   @relation(fields: [requestedLocationId], references: [id])
-  activities               LeadActivity[]
-  aiDrafts                 LeadAiDraft[]
-  testDriveBookings        TestDriveBooking[]
-  createdAt                DateTime    @default(now())
-  updatedAt                DateTime    @updatedAt
+  id                   String             @id @default(cuid())
+  reference            String             @unique
+  buyerUserId          String?
+  customerName         String
+  email                String?
+  phone                String
+  message              String?
+  source               LeadSource
+  status               LeadStatus         @default(NEW)
+  variantId            String?
+  vehicleStockId       String?
+  cityId               String?
+  requestedShowroomId  String?
+  assignedConsultantId String?
+  receivedAt           DateTime           @default(now())
+  assignedAt           DateTime?
+  firstRespondedAt     DateTime?
+  buyer                User?              @relation("BuyerLead", fields: [buyerUserId], references: [id], onDelete: SetNull)
+  assignedConsultant   Consultant?        @relation("LeadAssignee", fields: [assignedConsultantId], references: [id], onDelete: SetNull)
+  variant              CarVariant?        @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  vehicle              VehicleInventory?  @relation(fields: [vehicleStockId], references: [stockId], onDelete: SetNull)
+  city                 City?              @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  requestedShowroom    Showroom?          @relation(fields: [requestedShowroomId], references: [id], onDelete: SetNull)
+  assignments          LeadAssignment[]
+  activities           LeadActivity[]
+  aiDrafts             LeadAiDraft[]
+  testDriveBookings    TestDriveBooking[]
+  consentRecords       ConsentRecord[]
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
   @@index([assignedConsultantId, status, receivedAt])
   @@index([status, receivedAt])
   @@index([source, receivedAt])
+}
+
+model LeadAssignment {
+  id           String     @id @default(cuid())
+  leadId       String
+  consultantId String
+  assignedById String?
+  assignedAt   DateTime   @default(now())
+  lead         Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  consultant   Consultant @relation(fields: [consultantId], references: [id], onDelete: Restrict)
+  assignedBy   User?      @relation("AssignmentActor", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@index([leadId, assignedAt])
+  @@index([consultantId, assignedAt])
+}
+
+model TestDriveSlot {
+  id                 String            @id @default(cuid())
+  showroomId         String
+  demoVehicleStockId String
+  startsAt           DateTime
+  endsAt             DateTime
+  isOpen             Boolean           @default(true)
+  showroom           Showroom          @relation(fields: [showroomId], references: [id], onDelete: Restrict)
+  demoVehicle        VehicleInventory  @relation(fields: [demoVehicleStockId], references: [stockId], onDelete: Restrict)
+  booking            TestDriveBooking?
+  createdAt          DateTime          @default(now())
+
+  @@unique([demoVehicleStockId, startsAt])
+  @@index([showroomId, startsAt, isOpen])
+}
+
+model TestDriveBooking {
+  id          String                 @id @default(cuid())
+  leadId      String
+  slotId      String                 @unique
+  buyerUserId String?
+  status      TestDriveBookingStatus @default(REQUESTED)
+  lead        Lead                   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  slot        TestDriveSlot          @relation(fields: [slotId], references: [id], onDelete: Restrict)
+  buyer       User?                  @relation("BookingBuyer", fields: [buyerUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@index([leadId, status])
+}
+
+model ConsentRecord {
+  id         String      @id @default(cuid())
+  userId     String?
+  leadId     String?
+  type       ConsentType
+  granted    Boolean
+  source     String
+  recordedAt DateTime    @default(now())
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  lead       Lead?       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, recordedAt])
+  @@index([leadId, type, recordedAt])
 }
 
 model LeadActivity {
@@ -296,21 +350,21 @@ model LeadActivity {
   type        LeadActivityType
   details     String
   lead        Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  actor       User?            @relation(fields: [actorUserId], references: [id])
+  actor       User?            @relation("LeadActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
   createdAt   DateTime         @default(now())
 
   @@index([leadId, createdAt])
 }
 
 model LeadAiDraft {
-  id          String    @id @default(cuid())
-  leadId      String
-  summary     String
-  replyDraft  String
-  model       String
-  reviewedAt  DateTime?
-  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
+  id         String    @id @default(cuid())
+  leadId     String
+  summary    String
+  replyDraft String
+  model      String
+  reviewedAt DateTime?
+  lead       Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
 
   @@index([leadId, createdAt])
 }

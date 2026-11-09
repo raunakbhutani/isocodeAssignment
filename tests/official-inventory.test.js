@@ -22,6 +22,7 @@ describe("official Company A inventory seed", () => {
       kilometres: 0,
       priceInr: 1245000,
       priceBasis: "EX_SHOWROOM",
+      priceType: "EX_SHOWROOM",
       status: "AVAILABLE",
     });
   });
@@ -32,6 +33,7 @@ describe("official Company A inventory seed", () => {
       type: "USED",
       priceInr: 845000,
       priceBasis: "LISTING",
+      priceType: "LISTING_PRICE",
       status: "AVAILABLE",
     });
     expect(officialInventory[2]).toMatchObject({
@@ -39,6 +41,7 @@ describe("official Company A inventory seed", () => {
       type: "USED",
       priceInr: 512000,
       priceBasis: "LISTING",
+      priceType: "LISTING_PRICE",
       status: "BOOKED",
     });
   });

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Badge } from "./ui/primitives";
+import ResponseTimer from "./response-timer";
 
 const statuses = ["All leads", "New", "Contacted"];
 
@@ -66,7 +67,9 @@ export default function LeadTable({ leads }) {
             <p className="text-xs text-[var(--ink)]">{lead.vehicleStockId}</p>
             <p className="text-xs text-[var(--muted)]">{lead.source}</p>
             <Badge tone={lead.status === "New" ? "accent" : "neutral"}>{lead.status}</Badge>
-            <p className="text-xs text-[var(--muted)]">{lead.responseTimer}</p>
+            <p className="text-xs text-[var(--muted)]">
+              {lead.receivedAt ? <ResponseTimer receivedAt={lead.receivedAt} /> : lead.responseTimer}
+            </p>
           </Link>
         ))}
         {visibleLeads.length === 0 && (
@@ -76,7 +79,7 @@ export default function LeadTable({ leads }) {
           </div>
         )}
       </div>
-      <p className="mt-3 text-[10px] text-[var(--muted)]">Demo records only. Live assignment and response timers are not connected.</p>
+      <p className="mt-3 text-[10px] text-[var(--muted)]">Lead data is limited to your current assignments. Response time is measured from receipt.</p>
     </>
   );
 }
