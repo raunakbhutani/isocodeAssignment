@@ -1,69 +1,88 @@
-import Image from "next/image";
+import Link from "next/link";
+import { vehicles } from "../lib/mock-data";
+import VehicleCard from "../components/vehicle-card";
+import CarPhoto from "../components/car-photo";
+import { ButtonLink, Container, DemoNotice, Eyebrow, SectionTitle } from "../components/ui";
 
 export default function Home() {
+  const featured = vehicles.slice(0, 3);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
+    <main className="flex-1">
+      <section className="hero relative flex min-h-[620px] items-end overflow-hidden bg-[#252a2d] sm:min-h-[690px]">
+        <CarPhoto
+          src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=2200&q=90"
+          alt="Refined sports car on an open mountain road"
+          className="object-center"
           priority
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.js
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+        <div className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/25 to-transparent" />
+        <Container className="relative z-10 pb-14 pt-28 sm:pb-20">
+          <div className="max-w-2xl text-white">
+            <Eyebrow light>Company A · Driven by possibility</Eyebrow>
+            <h1 className="mt-6 text-5xl font-medium leading-[0.98] tracking-[-0.06em] sm:text-7xl">
+              The road ahead,<br />beautifully considered.
+            </h1>
+            <p className="mt-6 max-w-lg text-sm leading-7 text-white/80 sm:text-base">
+              Find a car that feels like it was made for you. Explore a considered collection of new and pre-owned vehicles.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <ButtonLink href="/new-cars">Explore new cars</ButtonLink>
+              <ButtonLink href="/used-cars" variant="light">Discover pre-owned</ButtonLink>
+            </div>
+          </div>
+        </Container>
+        <div className="absolute bottom-6 right-8 hidden text-[10px] uppercase tracking-[0.15em] text-white/70 md:block">
+          Sample imagery for preview
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+      </section>
+
+      <section className="bg-white py-16 sm:py-24">
+        <Container>
+          <div className="mb-8"><DemoNotice /></div>
+          <SectionTitle
+            eyebrow="A considered collection"
+            title="Meet your next favourite."
+            description="Thoughtfully selected models, each ready for its next journey."
+            action={<Link href="/new-cars" className="text-sm font-medium text-[var(--ink)] underline decoration-[var(--accent)] underline-offset-8">View all vehicles ↗</Link>}
+          />
+          <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+            {featured.map((vehicle) => <VehicleCard key={vehicle.slug} vehicle={vehicle} />)}
+          </div>
+        </Container>
+      </section>
+
+      <section className="bg-[#f5f5f2] py-16 sm:py-24">
+        <Container className="grid gap-10 md:grid-cols-2 md:items-center md:gap-20">
+          <div className="relative aspect-[1.2/1] overflow-hidden bg-[#e8e7e3]">
+            <CarPhoto
+              src="https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=1400&q=85"
+              alt="A premium vehicle ready for a closer look"
+              sizes="(min-width: 768px) 50vw, 100vw"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+          </div>
+          <div className="max-w-xl">
+            <Eyebrow>More than a showroom</Eyebrow>
+            <h2 className="mt-4 text-4xl font-medium leading-tight tracking-[-0.05em] text-[var(--ink)] sm:text-5xl">
+              Good decisions start with a great drive.
+            </h2>
+            <p className="mt-5 text-sm leading-7 text-[var(--muted)]">
+              Take the time to get to know a car. Our consultants are here to answer your questions and help you find the right fit.
+            </p>
+            <ButtonLink href="/book-test-drive" className="mt-7">Book a test drive</ButtonLink>
+          </div>
+        </Container>
+      </section>
+
+      <section className="bg-white py-16 sm:py-24">
+        <Container className="flex flex-col gap-7 border-y border-[var(--line)] py-10 sm:flex-row sm:items-center sm:justify-between sm:py-14">
+          <div>
+            <Eyebrow>Here when you need us</Eyebrow>
+            <h2 className="mt-3 text-3xl font-medium tracking-[-0.04em] text-[var(--ink)]">A thoughtful journey, from the first hello.</h2>
+          </div>
+          <Link href="/new-cars" className="shrink-0 text-sm font-medium text-[var(--ink)] underline decoration-[var(--accent)] underline-offset-8">Start exploring ↗</Link>
+        </Container>
+      </section>
+    </main>
   );
 }

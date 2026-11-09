@@ -2,7 +2,11 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #202321;
+  --ink: #202321;
+  --muted: #777c78;
+  --line: #e7e8e5;
+  --accent: #a64e37;
 }
 
 @theme inline {
@@ -12,15 +16,70 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), sans-serif;
+}
+
+::selection {
+  background: #ead9d2;
+  color: var(--ink);
+}
+
+.nav-link {
+  color: var(--muted);
+  font-size: 0.75rem;
+  transition: color 160ms ease;
+}
+
+.nav-link:hover {
+  color: var(--ink);
+}
+
+.form-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.form-input {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: white;
+  padding: 0 0.9rem;
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 400;
+  outline: none;
+}
+
+.form-input::placeholder {
+  color: #a4a8a4;
+}
+
+.form-input:focus {
+  border-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
