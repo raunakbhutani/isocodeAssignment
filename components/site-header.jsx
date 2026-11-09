@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useBuyerLanguage } from "./buyer-language-provider";
 
 const links = [
   { href: "/new-cars", label: "New cars" },
@@ -10,8 +11,8 @@ const links = [
 ];
 
 export default function SiteHeader() {
-  // This state only opens and closes the mobile navigation menu.
   const [menuOpen, setMenuOpen] = useState(false);
+  const { language, setLanguage, t } = useBuyerLanguage();
 
   return (
     <header className="relative z-20 border-b border-[var(--line)] bg-white">
@@ -34,33 +35,34 @@ export default function SiteHeader() {
         <nav className="hidden items-center gap-8 md:flex" aria-label="Main navigation">
           {links.map((link) => (
             <Link key={link.href} href={link.href} className="nav-link">
-              {link.label}
+              {t(link.label)}
             </Link>
           ))}
         </nav>
 
         <div className="hidden items-center gap-5 md:flex">
-          <Link href="/login" className="nav-link text-xs">Sign in</Link>
-          <Link href="/book-test-drive" className="nav-link text-xs">Test drive</Link>
+          <Link href="/login" className="nav-link text-xs">{t("Sign in")}</Link>
+          <Link href="/book-test-drive" className="nav-link text-xs">{t("Test drive")}</Link>
           <Link href="/consultant/leads" className="nav-link text-xs">
-            Consultant
+            {t("Consultant")}
           </Link>
           <Link href="/admin" className="nav-link text-xs">
-            Admin
+            {t("Admin")}
           </Link>
           <Link
             href="/new-cars"
             className="inline-flex h-11 items-center justify-center bg-[var(--ink)] px-5 text-xs font-medium text-white transition-colors hover:bg-[var(--accent)]"
           >
-            Browse stock
+            {t("Browse stock")}
           </Link>
+          <LanguageToggle language={language} setLanguage={setLanguage} />
         </div>
 
         <button
           type="button"
           className="flex h-11 w-11 items-center justify-center border border-[var(--line)] text-xl text-[var(--ink)] md:hidden"
           aria-expanded={menuOpen}
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-label={t(menuOpen ? "Close menu" : "Open menu")}
           onClick={() => setMenuOpen((open) => !open)}
         >
           {menuOpen ? "×" : "☰"}
@@ -78,13 +80,33 @@ export default function SiteHeader() {
                   className="border-b border-[var(--line)] py-4 text-sm text-[var(--ink)] last:border-0"
                   onClick={() => setMenuOpen(false)}
                 >
-                  {link.label}
+                  {t(link.label)}
                 </Link>
               ),
             )}
+            <div className="pt-4">
+              <LanguageToggle language={language} setLanguage={setLanguage} />
+            </div>
           </div>
         </nav>
       )}
     </header>
+  );
+}
+
+function LanguageToggle({ language, setLanguage }) {
+  return (
+    <label className="inline-flex items-center gap-2 text-xs text-[var(--muted)]">
+      <span className="sr-only">Choose display language</span>
+      <select
+        aria-label="Choose display language"
+        value={language}
+        onChange={(event) => setLanguage(event.target.value)}
+        className="h-10 border border-[var(--line)] bg-white px-2 text-xs text-[var(--ink)]"
+      >
+        <option value="en">English</option>
+        <option value="hi">हिन्दी</option>
+      </select>
+    </label>
   );
 }

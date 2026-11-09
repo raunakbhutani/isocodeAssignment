@@ -11,7 +11,7 @@ The app includes database-backed public inventory and vehicle details, enquiry a
 ## Local setup
 
 1. Install dependencies with `npm install`.
-2. Copy `.env.example` to `.env.local`. Set `DATABASE_URL` to a development PostgreSQL database you control, generate a private `AUTH_SECRET`, set a private `DEMO_ACCOUNT_PASSWORD` (12 to 72 UTF-8 bytes), and provide `GEMINI_API_KEY` locally. Never commit `.env.local` or share API keys. If Gemini is not configured, lead capture still works and consultants can write summaries and replies manually.
+2. Copy `.env.example` to `.env.local`. For Neon, use the CLI (`neon init`, then `neon deploy`) to pull the selected branch's variables: `DATABASE_URL` is pooled for app queries and `DATABASE_URL_UNPOOLED` is direct for migrations. The Prisma schema uses both accordingly. Generate a private `AUTH_SECRET`, set a private `DEMO_ACCOUNT_PASSWORD` (12 to 72 UTF-8 bytes), and provide `GEMINI_API_KEY` locally. Never commit `.env.local` or share API keys. If Gemini is not configured, lead capture still works and consultants can write summaries and replies manually.
 3. Generate the Prisma client with `npm run db:generate`.
 4. Apply the checked-in migrations with `npm run db:migrate`.
 5. Seed official inventory and labeled development-only demo data with `npm run db:seed`.
@@ -19,7 +19,7 @@ The app includes database-backed public inventory and vehicle details, enquiry a
 
 `npm run db:push` is available for a disposable local database when you do not need migration history. Use migrations for shared environments.
 
-The current environment has no configured PostgreSQL connection. Prisma schema/client checks can run locally, but the migration and database-seed verification must be completed after a development database is configured.
+Neon environment variables are local-only and `.env.local` is ignored by Git. Before applying schema changes to a shared or production branch, review the migration status and use the checked-in migrations.
 
 ## Official inventory seed
 

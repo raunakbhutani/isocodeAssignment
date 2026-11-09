@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { formatPrice } from "../lib/format";
 import { InfoNotice } from "./ui";
+import { useBuyerLanguage } from "./buyer-language-provider";
 
 const initialState = { status: "loading", price: null, error: "" };
 
 export default function CityPricePanel({ variantId, cities }) {
+  const { t } = useBuyerLanguage();
   const [cityId, setCityId] = useState(cities[0]?.id ?? "");
   const [state, setState] = useState(cities.length ? initialState : { status: "empty", price: null, error: "" });
 
@@ -34,10 +36,10 @@ export default function CityPricePanel({ variantId, cities }) {
 
   return (
     <section className="mt-8 border border-[var(--line)] bg-[#f7f7f5] p-5 sm:p-6">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">On-road price estimate</p>
-      <h2 className="mt-2 text-xl font-medium text-[var(--ink)]">Choose a city</h2>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--accent)]">{t("On-road price estimate")}</p>
+      <h2 className="mt-2 text-xl font-medium text-[var(--ink)]">{t("Choose a city")}</h2>
       <label htmlFor="price-city" className="mt-4 block text-xs font-medium text-[var(--ink)]">
-        City
+        {t("City")}
         <select
           id="price-city"
           value={cityId}
@@ -55,7 +57,7 @@ export default function CityPricePanel({ variantId, cities }) {
         </select>
       </label>
 
-      {state.status === "ready" && <PriceBreakdown price={state.price} />}
+      {state.status === "ready" && <PriceBreakdown price={state.price} t={t} />}
       {state.status === "loading" && (
         <p className="mt-5 text-sm text-[var(--muted)]" role="status">Loading current city pricing…</p>
       )}
@@ -74,7 +76,7 @@ export default function CityPricePanel({ variantId, cities }) {
   );
 }
 
-function PriceBreakdown({ price }) {
+function PriceBreakdown({ price, t }) {
   const { breakdown } = price;
   const dateOptions = { timeZone: "UTC" };
   const validity = `${new Date(price.effectiveFrom).toLocaleDateString("en-IN", dateOptions)} – ${
@@ -93,16 +95,16 @@ function PriceBreakdown({ price }) {
         </div>
       )}
       <div className="mt-5 space-y-3 border-t border-[var(--line)] pt-4 text-xs">
-        <PriceLine label="Ex-showroom price" amount={breakdown.exShowroomPriceInr} />
-        <PriceLine label="Road tax" amount={breakdown.roadTaxInr} />
-        <PriceLine label="Registration" amount={breakdown.registrationFeeInr} />
-        <PriceLine label="Insurance" amount={breakdown.insuranceInr} />
-        <PriceLine label="Accessories" amount={breakdown.accessoriesInr} />
-        <PriceLine label="Other applicable charges" amount={breakdown.otherChargesInr} />
+        <PriceLine label={t("Ex-showroom price")} amount={breakdown.exShowroomPriceInr} />
+        <PriceLine label={t("Road tax")} amount={breakdown.roadTaxInr} />
+        <PriceLine label={t("Registration")} amount={breakdown.registrationFeeInr} />
+        <PriceLine label={t("Insurance")} amount={breakdown.insuranceInr} />
+        <PriceLine label={t("Accessories")} amount={breakdown.accessoriesInr} />
+        <PriceLine label={t("Other applicable charges")} amount={breakdown.otherChargesInr} />
       </div>
       <div className="mt-4 border-t border-[var(--line)] pt-4">
         <div className="flex items-center justify-between gap-4 text-sm font-medium text-[var(--ink)]">
-          <span>Estimated on-road total</span>
+          <span>{t("Estimated on-road total")}</span>
           <span>{formatPrice(breakdown.totalInr)}</span>
         </div>
         <p className="mt-2 text-[10px] text-[var(--muted)]">Price validity: {validity}</p>

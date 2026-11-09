@@ -17,7 +17,7 @@ describe("test-drive slot safety", () => {
     expect(isBookableDemoSlot(availableDemoSlot, "showroom-id", "UC-1190", now)).toBe(false);
   });
 
-  it("rejects booked, closed, and past slots", () => {
+  it("rejects booked or closed slots and past appointments", () => {
     expect(isBookableDemoSlot({
       ...availableDemoSlot,
       demoVehicleStockId: "UC-1190",

@@ -3,6 +3,7 @@ import TestDriveForm from "../../components/test-drive-form";
 import { Container, Eyebrow } from "../../components/ui";
 import { connection } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { BuyerText } from "@/components/buyer-language-provider";
 
 export const metadata = { title: "Test-drive request | DriveHub" };
 
@@ -72,7 +73,7 @@ export default function TestDrivePage({ searchParams }) {
       <Container className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
         <div>
           <Eyebrow>Test-drive request</Eyebrow>
-          <h1 className="mt-4 text-4xl font-medium leading-tight tracking-[-0.05em] text-[var(--ink)] sm:text-6xl">Get to know the car from the driver’s seat.</h1>
+          <h1 className="mt-4 text-4xl font-medium leading-tight tracking-[-0.05em] text-[var(--ink)] sm:text-6xl"><BuyerText>Get to know the car from the driver’s seat.</BuyerText></h1>
           <p className="mt-5 text-sm leading-7 text-[var(--muted)]">Choose an available vehicle of interest, then an active showroom and open time slot. A separate demo car is used for the appointment.</p>
           <div className="mt-8 border-l-2 border-[var(--accent)] pl-5">
             <p className="text-sm font-medium text-[var(--ink)]">What happens next?</p>

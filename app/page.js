@@ -4,6 +4,7 @@ import CarPhoto from "../components/car-photo";
 import { ButtonLink, Container, DemoNotice, Eyebrow, InfoNotice } from "../components/ui";
 import { connection } from "next/server";
 import { listPublicVehicles } from "@/lib/vehicle-queries";
+import { BuyerText } from "@/components/buyer-language-provider";
 
 export const metadata = {
   title: "DriveHub | Company A · Brand X",
@@ -33,14 +34,14 @@ export default async function Home() {
           <div className="max-w-2xl text-white">
             <Eyebrow light>Company A · Authorized Brand X dealer</Eyebrow>
             <h1 className="mt-6 text-5xl font-medium leading-[0.98] tracking-[-0.06em] sm:text-7xl">
-              A more considered<br />way to find your car.
+              <BuyerText>A more considered way to find your car.</BuyerText>
             </h1>
             <p className="mt-6 max-w-xl text-sm leading-7 text-white/80 sm:text-base">
-              Discover new and pre-owned Brand X vehicles with the local team at Company A, in Lucknow, Uttar Pradesh.
+              <BuyerText>Discover new and pre-owned Brand X vehicles with the local team at Company A, in Lucknow, Uttar Pradesh.</BuyerText>
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <ButtonLink href="/new-cars">Explore new cars</ButtonLink>
-              <ButtonLink href="/used-cars" variant="light">Browse used cars</ButtonLink>
+              <ButtonLink href="/new-cars"><BuyerText>Explore new cars</BuyerText></ButtonLink>
+              <ButtonLink href="/used-cars" variant="light"><BuyerText>Browse used cars</BuyerText></ButtonLink>
             </div>
           </div>
         </Container>
@@ -58,7 +59,7 @@ export default async function Home() {
           <div className="mb-8 flex items-end justify-between gap-5">
             <div>
               <Eyebrow>New from Brand X</Eyebrow>
-              <h2 className="mt-3 text-3xl font-medium tracking-[-0.045em] text-[var(--ink)] sm:text-4xl">A new drive begins here.</h2>
+              <h2 className="mt-3 text-3xl font-medium tracking-[-0.045em] text-[var(--ink)] sm:text-4xl"><BuyerText>A new drive begins here.</BuyerText></h2>
             </div>
             <Link href="/new-cars" className="hidden text-sm font-medium text-[var(--ink)] underline decoration-[var(--accent)] underline-offset-8 sm:block">All new cars ↗</Link>
           </div>
@@ -75,7 +76,7 @@ export default async function Home() {
           <div className="mb-8 flex items-end justify-between gap-5">
             <div>
               <Eyebrow>Pre-owned, considered</Eyebrow>
-              <h2 className="mt-3 text-3xl font-medium tracking-[-0.045em] text-[var(--ink)] sm:text-4xl">Find the right next chapter.</h2>
+              <h2 className="mt-3 text-3xl font-medium tracking-[-0.045em] text-[var(--ink)] sm:text-4xl"><BuyerText>Find the right next chapter.</BuyerText></h2>
             </div>
             <Link href="/used-cars" className="hidden text-sm font-medium text-[var(--ink)] underline decoration-[var(--accent)] underline-offset-8 sm:block">All used cars ↗</Link>
           </div>
@@ -102,12 +103,12 @@ export default async function Home() {
           <div className="max-w-xl">
             <Eyebrow>Come see it for yourself</Eyebrow>
             <h2 className="mt-4 text-4xl font-medium leading-tight tracking-[-0.05em] text-[var(--ink)] sm:text-5xl">
-              The best way to know is to take the wheel.
+              <BuyerText>The best way to know is to take the wheel.</BuyerText>
             </h2>
             <p className="mt-5 text-sm leading-7 text-[var(--muted)]">
               Request a test drive and tell us what works for you. Showroom names, demo cars, and live slots will be confirmed when dealership details are connected.
             </p>
-            <ButtonLink href="/book-test-drive" className="mt-7">Request a test drive</ButtonLink>
+            <ButtonLink href="/book-test-drive" className="mt-7"><BuyerText>Book a test drive</BuyerText></ButtonLink>
           </div>
         </Container>
       </section>
@@ -117,7 +118,7 @@ export default async function Home() {
           <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
             <div>
               <Eyebrow>Here in Lucknow</Eyebrow>
-              <h2 className="mt-4 text-4xl font-medium tracking-[-0.05em] text-[var(--ink)] sm:text-5xl">A local team, ready to help.</h2>
+              <h2 className="mt-4 text-4xl font-medium tracking-[-0.05em] text-[var(--ink)] sm:text-5xl"><BuyerText>A local team, ready to help.</BuyerText></h2>
             </div>
             <p className="max-w-2xl text-sm leading-7 text-[var(--muted)]">
               Company A operates three showrooms, two service workshops, and a certified used-car yard in Lucknow. Individual branch names and addresses were not included in the brief.

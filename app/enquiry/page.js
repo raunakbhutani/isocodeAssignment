@@ -3,6 +3,7 @@ import EnquiryForm from "../../components/enquiry-form";
 import { Container, Eyebrow } from "../../components/ui";
 import { connection } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { BuyerText } from "@/components/buyer-language-provider";
 
 export const metadata = { title: "Send an enquiry | DriveHub" };
 
@@ -43,7 +44,7 @@ export default function EnquiryPage({ searchParams }) {
       <Container className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
         <div>
           <Eyebrow>Talk to Company A</Eyebrow>
-          <h1 className="mt-4 text-4xl font-medium leading-tight tracking-[-0.05em] text-[var(--ink)] sm:text-6xl">Tell us what you’d like to know.</h1>
+          <h1 className="mt-4 text-4xl font-medium leading-tight tracking-[-0.05em] text-[var(--ink)] sm:text-6xl"><BuyerText>Tell us what you’d like to know.</BuyerText></h1>
           <p className="mt-5 text-sm leading-7 text-[var(--muted)]">
             Share what you are looking for and the right consultant will be selected for your showroom and vehicle interest when possible.
           </p>

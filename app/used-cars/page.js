@@ -2,6 +2,7 @@ import ListingExplorer from "../../components/listing-explorer";
 import { Container, Eyebrow } from "../../components/ui";
 import { connection } from "next/server";
 import { listPublicVehicles } from "@/lib/vehicle-queries";
+import { BuyerText } from "@/components/buyer-language-provider";
 
 export const metadata = { title: "Used cars | DriveHub" };
 
@@ -14,8 +15,8 @@ export default async function UsedCarsPage() {
       <Container>
         <div className="mb-9 max-w-2xl">
           <Eyebrow>Brand X · Used cars</Eyebrow>
-          <h1 className="mt-4 text-4xl font-medium tracking-[-0.05em] text-[var(--ink)] sm:text-6xl">Used cars, with the details up front.</h1>
-          <p className="mt-5 text-sm leading-7 text-[var(--muted)]">View current used-car inventory, with listing prices, mileage, history fields, and availability.</p>
+          <h1 className="mt-4 text-4xl font-medium tracking-[-0.05em] text-[var(--ink)] sm:text-6xl"><BuyerText>Used cars, with the details up front.</BuyerText></h1>
+          <p className="mt-5 text-sm leading-7 text-[var(--muted)]"><BuyerText>View current used-car inventory, with listing prices, mileage, history fields, and availability.</BuyerText></p>
         </div>
         <ListingExplorer vehicles={usedVehicles} used />
         <div className="mt-10 border border-[var(--line)] bg-white p-6 sm:p-8">

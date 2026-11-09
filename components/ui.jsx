@@ -40,7 +40,7 @@ export function ButtonLink({ href, children, variant = "dark", className = "" })
 }
 
 export function DemoNotice({
-  children = "Inventory figures come from the supplied brief. Photos are placeholders; this frontend is not connected to live inventory or booking services.",
+  children = "Official sample inventory is from the brief. Additional demo records are assumptions; photographs are placeholders. Inventory and booking use the configured database.",
 }) {
   return (
     <p className="rounded-sm border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">
